@@ -2,7 +2,7 @@
 import rospy
 import cv2
 import numpy as np
-from hound_mppi import mppi
+# from hound_mppi import mppi
 from grid_map_msgs.msg import GridMap
 from nav_msgs.msg import Odometry, Path as navPath
 from sensor_msgs.msg import Imu
@@ -17,6 +17,7 @@ import time
 import torch
 from Bezier import *
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from policy_factory import load_policy
 
 
 class Hound_HL_Control:
@@ -64,7 +65,7 @@ class Hound_HL_Control:
         self.loop_dt = 20
 
         ## initialize the controller:
-        self.controller = mppi(Config)
+        self.controller = load_policy(Config)
 
         # initialize the odometry and imu subscribers with callbacks
         self.odom_sub = rospy.Subscriber(
@@ -458,7 +459,7 @@ class Hound_HL_Control:
             pose.pose.position.z = self.path_poses[i, 2]
             path.poses.append(pose)
         self.interpolated_path_pub.publish(path)
-        self.controller.mppi.reset()
+        self.controller.reset()
         self.goal_init = True
 
     def interpolate_path(self, target_WP):
@@ -498,7 +499,7 @@ class Hound_HL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    config_name = "hound_mppi.yaml"
+    config_name = "hound_policies.yaml"
     config_path = "/root/catkin_ws/src/hound_core/config/" + config_name
     with open(config_path) as f:
         Config = yaml.safe_load(f)

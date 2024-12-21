@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+"#!/usr/bin/env python3
+from hound_policy import HoundPolicyBase
 import numpy as np
 import torch
 from BeamNGRL.control.UW_mppi.MPPI import MPPI
@@ -12,8 +13,10 @@ import cv2
 torch.manual_seed(0)
 
 
-class mppi:
+class mppi(HoundPolicyBase):
     def __init__(self, Config):
+        super().__init__(Config)  
+
         self.Dynamics_config = Config["Dynamics_config"]
         self.Cost_config = Config["Cost_config"]
         self.Sampling_config = Config["Sampling_config"]
@@ -38,16 +41,19 @@ class mppi:
         self.print_states = None
         self.default_max_thr = self.Sampling_config["max_thr"] # set the default value. consider using a deep-copy?
 
-    def set_hard_limit(self, hard_limit):
-        self.Sampling_config["max_thr"] = min(
-            hard_limit / self.Dynamics_config["throttle_to_wheelspeed"],
-            self.default_max_thr,
-        )
+    def _update_policy_specific_hard_limit(self):
         self.mppi.Sampling.max_thr = torch.tensor(
             self.Sampling_config["max_thr"], device=self.device, dtype=self.dtype
         )
+        
+    def reset(self):
+        """
+        Reset the policy to its initial state.
+        Encapsulates the reset logic for the underlying MPPI controller.
+        """
+        self.mppi.reset()
 
-    def update(self, state, goal, map_elev, map_norm, map_cost, map_cent, speed_limit):
+    def update_mppi(self, state, goal, map_elev, map_norm, map_cost, map_cent, speed_limit):
         ## get robot_centric BEV (not rotated into robot frame)
         BEV_heght = torch.from_numpy(map_elev).to(device=self.device, dtype=self.dtype)
         BEV_normal = torch.from_numpy(map_norm).to(device=self.device, dtype=self.dtype)
