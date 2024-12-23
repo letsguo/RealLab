@@ -3,7 +3,7 @@
 from hound_policy import HoundPolicyBase
 import torch
 import numpy as np
-from actor_critic import ActorCritic  # Ensure this is accessible in your project
+from utils.actor_critic import ActorCritic  # Ensure this is accessible in your project
 
 class ActorCriticPolicy(HoundPolicyBase):
     def __init__(self, Config):
