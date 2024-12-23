@@ -9,5 +9,5 @@ class RLModel:
         self.Model = ActorCritic(*acargs, **ackwargs)
         self.Model.load_state_dict(loaded_dict["model_state_dict"])
     def inference(self, state):
-        state = torch.Tensor(state).tolist()
+        state = torch.Tensor(state)
         return self.Model.act_inference(state).tolist()
