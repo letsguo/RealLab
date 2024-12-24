@@ -26,10 +26,11 @@ class Waypoints:
         waypoints = []
         for i in range(num_waypoints):
             waypoint = self.make_waypoint(dist_between_waypoints*i, track_radius, track_straight_dist)
+            waypoint[0], waypoint[1] = waypoint[1], waypoint[0]
             waypoints.append(waypoint)
         self.waypoints = torch.tensor(waypoints, dtype=torch.float32)
 
-    def make_waypoint(self, dist: int, track_radius: int, track_straight_dist: int) -> list[float]:
+    def make_waypoint(self, dist, track_radius, track_straight_dist):
         if dist < 2*track_straight_dist:
             return [dist-track_straight_dist, -track_radius, 0]
         elif dist < 2*track_straight_dist + np.pi*track_radius:

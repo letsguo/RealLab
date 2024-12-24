@@ -22,7 +22,7 @@ from policy_factory import load_policy
 
 
 class Hound_RLHL_Control:
-    def __init__(self, name, throttle_to_wheelspeed= 17.0, steering_max = 0.488, speed_limit=10.0):
+    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.4, speed_limit=10.0):
         ## state variables
         self.state_init = False
         self.state = np.zeros(14, dtype=np.float32)
@@ -36,10 +36,10 @@ class Hound_RLHL_Control:
 
         waypoints = Waypoints()
         waypoints.generate_waypoints()
-
+        print("\n1\n")
         # initialize the odometry and imu subscribers with callbacks
         self.odom_sub = rospy.Subscriber(
-            "/mavros/local_position/odom", Odometry, self.odom_callback
+            "/car/car_odom", Odometry, self.odom_callback
         )
         self.imu_sub = rospy.Subscriber("/mavros/imu/data_raw", Imu, self.imu_callback)
         # self.grid_map_sub = rospy.Subscriber(
@@ -73,11 +73,9 @@ class Hound_RLHL_Control:
         time.sleep(1)
         reset_msg = AckermannDriveStamped()
         self.reset_pub.publish(reset_msg)
-        os.system(
-            "rosservice call /elevation_mapping/clear_map"
-        )  ## clear the elevation map.
         time.sleep(1)
         ## initialize controller:
+        print("\n2\n")
         self.main_loop()
 
     def limits_callback(self, msg):
@@ -87,9 +85,7 @@ class Hound_RLHL_Control:
         ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
         # it in a callback which causes it to create new contexts faster than it can delete the old ones leading to rapid memory growth
         while not rospy.is_shutdown():
-            if (
-                self.state_init
-            ):
+            if (self.state_init and self.odom_update):
                 ctrl = self.model.inference(self.state)
                 self.state[12:14] = ctrl
                 self.send_ctrl(ctrl)
@@ -99,8 +95,8 @@ class Hound_RLHL_Control:
         control_msg = AckermannDriveStamped()
         control_msg.header.stamp = rospy.Time.now()
         control_msg.header.frame_id = "base_link"
-        control_msg.drive.steering_angle = ctrl[0] * self.steering_max
-        control_msg.drive.speed = ctrl[1] * self.throttle_to_wheelspeed
+        control_msg.drive.steering_angle = ctrl[1] * self.steering_max
+        control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
         self.control_pub.publish(control_msg)
 
     def obtain_state(self, odom):
@@ -117,15 +113,14 @@ class Hound_RLHL_Control:
         )
         rpy = euler_from_quaternion(quaternion)
         pos = torch.zeros(6)
-        pos[0] = odom.pose.pose.position.y
-        pos[1] = odom.pose.pose.position.x
+        pos[0] = odom.pose.pose.position.x
+        pos[1] = odom.pose.pose.position.y
         pos[2] = odom.pose.pose.position.z
         pos[3] = rpy[0]
         pos[4] = rpy[1]
         pos[5] = rpy[2]
 
         self.state[:6] = self.pos_angle(pos).numpy()
-
         self.state[6] = odom.twist.twist.linear.x
         self.state[7] = odom.twist.twist.linear.y
         self.state[8] = odom.twist.twist.linear.z

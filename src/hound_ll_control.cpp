@@ -227,10 +227,10 @@ public:
       {
         steering_setpoint = steering_limiter(steering_setpoint, intervention);
       }
-      if(lidar_stop or (safe_distance > 0.1 and not scan_init))
-      {
-        wheelspeed_setpoint = 0;
-      }
+      // if(lidar_stop or (safe_distance > 0.1 and not scan_init))
+      // {
+      //   wheelspeed_setpoint = 0;
+      // }
       float throttle_duty = speed_controller(wheelspeed_setpoint);
       pub_ctrl(steering_setpoint / steering_max, throttle_duty);
       

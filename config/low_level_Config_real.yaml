@@ -3,7 +3,7 @@ steering_max: 0.488 # maximum steering in either direction in radians
 wheelbase: 0.29 # wheelbase of the car
 cg_height: 0.125 # height of the center of mass
 track_width: 0.25 ## track width of the vehicle
-wheelspeed_max: 17.0 # maximum allowed wheelspeed -- the maximum speed that can be commanded through the low-level controller
+wheelspeed_max: 5.0 # maximum allowed wheelspeed -- the maximum speed that can be commanded through the low-level controller
 nominal_voltage: 14.8 # nominal battery voltage
 motor_kv: 3930 # motor KV rating
 speed_control_kp: 1.0  # speed controller Kp gain
