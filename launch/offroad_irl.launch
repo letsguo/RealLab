@@ -1,4 +1,6 @@
 <launch>
+    <include file="$(find mushr_mocap)/launch/car_odom_publisher.launch" />
+
     <node pkg="hound_core" type="HAL_9000.py" name="HAL" output="screen"/>
     
     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core offroad_apm.launch" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
