@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 # from hound_mppi import mppi
 from nav_msgs.msg import Odometry, Path as navPath
+from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from utils.rl_policy import RLModel
@@ -66,6 +67,10 @@ class Hound_RLHL_Control:
         self.control_pub = rospy.Publisher(
             "low_level_controller/hound/control", AckermannDriveStamped, queue_size=1
         )
+        self.state_pub = rospy.Publisher(
+            "hl_controller/state", Float32MultiArray, queue_size=1
+        ) 
+
         self.marker_pub = rospy.Publisher("marker", MarkerArray, queue_size=1)
         self.reset_pub = rospy.Publisher(
             "/simulation_reset", AckermannDriveStamped, queue_size=2
@@ -119,6 +124,10 @@ class Hound_RLHL_Control:
         pos[3] = rpy[0]
         pos[4] = rpy[1]
         pos[5] = rpy[2]
+
+        msg = Float32MultiArray()
+        msg.data = pos.numpy().tolist()
+        self.state_pub.publish(msg)
 
         self.state[:6] = self.pos_angle(pos).numpy()
         self.state[6] = odom.twist.twist.linear.x
