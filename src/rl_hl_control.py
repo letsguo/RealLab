@@ -39,7 +39,7 @@ class Hound_RLHL_Control:
         print("\n1\n")
         # initialize the odometry and imu subscribers with callbacks
         self.odom_sub = rospy.Subscriber(
-            "/car/car_odom", Odometry, self.odom_callback
+            "/mavros/local_position/odom", Odometry, self.odom_callback
         )
         self.imu_sub = rospy.Subscriber("/mavros/imu/data_raw", Imu, self.imu_callback)
         # self.grid_map_sub = rospy.Subscriber(
@@ -153,5 +153,5 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("ppo_relative.pt")
+    planner = Hound_RLHL_Control("ppo_relative2_2000.pt")
     rospy.spin()
