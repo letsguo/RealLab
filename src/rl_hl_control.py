@@ -125,10 +125,6 @@ class Hound_RLHL_Control:
         pos[4] = rpy[1]
         pos[5] = rpy[2]
 
-        msg = Float32MultiArray()
-        msg.data = pos.numpy().tolist()
-        self.state_pub.publish(msg)
-
         self.state[:6] = self.pos_angle(pos).numpy()
         self.state[6] = odom.twist.twist.linear.x
         self.state[7] = odom.twist.twist.linear.y
@@ -136,6 +132,10 @@ class Hound_RLHL_Control:
         self.state[9] = self.imu.angular_velocity.x
         self.state[10] = self.imu.angular_velocity.y
         self.state[11] = self.imu.angular_velocity.z
+
+        msg = Float32MultiArray()
+        msg.data = self.state.tolist()
+        self.state_pub.publish(msg)
 
     def odom_callback(self, odom):
         if self.imu is None:
@@ -162,5 +162,5 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("ppo_relative2_2000.pt")
+    planner = Hound_RLHL_Control("ppo_relative3_1000.pt")
     rospy.spin()
