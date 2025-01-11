@@ -26,7 +26,7 @@ class Hound_RLHL_Control:
     def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.4, speed_limit=10.0):
         ## state variables
         self.state_init = False
-        self.state = np.zeros(14, dtype=np.float32)
+        self.state = np.zeros(12, dtype=np.float32)
         self.throttle_to_wheelspeed = throttle_to_wheelspeed
         self.steering_max = steering_max
         self.imu = None
@@ -92,7 +92,6 @@ class Hound_RLHL_Control:
         while not rospy.is_shutdown():
             if (self.state_init and self.odom_update):
                 ctrl = self.model.inference(self.state)
-                self.state[12:14] = ctrl
                 self.send_ctrl(ctrl)
                 self.odom_update = False
 
