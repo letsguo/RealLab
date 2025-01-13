@@ -140,10 +140,6 @@ class Hound_RLHL_Control:
         self.state[10] = self.imu.angular_velocity.y
         self.state[11] = self.imu.angular_velocity.z
 
-        msg = Float32MultiArray()
-        msg.data = self.state.tolist()
-        self.state_pub.publish(msg)
-
     def odom_callback(self, odom):
         if self.imu is None:
             return
