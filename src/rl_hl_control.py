@@ -161,5 +161,5 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("ppo_relative3_1000.pt")
+    planner = Hound_RLHL_Control("ppo_relative4_2000.pt")
     rospy.spin()
