@@ -23,7 +23,7 @@ from policy_factory import load_policy
 
 
 class Hound_RLHL_Control:
-    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.4, speed_limit=10.0):
+    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, speed_limit=10.0):
         ## state variables
         self.state_init = False
         self.state = np.zeros(12, dtype=np.float32)
@@ -89,11 +89,17 @@ class Hound_RLHL_Control:
     def main_loop(self):
         ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
         # it in a callback which causes it to create new contexts faster than it can delete the old ones leading to rapid memory growth
+        rate = rospy.Rate(20)
         while not rospy.is_shutdown():
             if (self.state_init and self.odom_update):
                 ctrl = self.model.inference(self.state)
                 self.send_ctrl(ctrl)
                 self.odom_update = False
+
+                msg = Float32MultiArray()
+                msg.data = self.state.tolist()
+                self.state_pub.publish(msg)
+            rate.sleep()
 
     def send_ctrl(self, ctrl):
         control_msg = AckermannDriveStamped()
@@ -120,9 +126,11 @@ class Hound_RLHL_Control:
         pos[0] = odom.pose.pose.position.x
         pos[1] = odom.pose.pose.position.y
         pos[2] = odom.pose.pose.position.z
-        pos[3] = rpy[0]
-        pos[4] = rpy[1]
-        pos[5] = rpy[2]
+
+        #make sure angles are between 0 and 2pi
+        pos[3] = (rpy[0] + 2*np.pi) % (2*np.pi)
+        pos[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
+        pos[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
 
         self.state[:6] = self.pos_angle(pos).numpy()
         self.state[6] = odom.twist.twist.linear.x
