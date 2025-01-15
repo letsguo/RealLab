@@ -23,15 +23,16 @@ from policy_factory import load_policy
 
 
 class Hound_RLHL_Control:
-    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, speed_limit=10.0):
+    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, alpha = [0.2,0.2,0.2,0.2,0.2,0.2], speed_limit=10.0):
         ## state variables
         self.state_init = False
         self.state = np.zeros(12, dtype=np.float32)
         self.throttle_to_wheelspeed = throttle_to_wheelspeed
         self.steering_max = steering_max
         self.imu = None
-        
+        self.alpha = torch.tensor(alpha)
         self.odom_update = False
+        self.pose = torch.zeros(6)
 
         self.model = RLModel(name)
 
@@ -111,10 +112,7 @@ class Hound_RLHL_Control:
 
     def obtain_state(self, odom):
         ## obtain the state from the odometry and imu messages:
-        dt = (odom.header.stamp - self.imu.header.stamp).to_sec()
-        self.large_dt = False
-        if dt > 0.1:
-            self.large_dt = True
+        new_pose = torch.zeros(6)
         quaternion = (
             odom.pose.pose.orientation.x,
             odom.pose.pose.orientation.y,
@@ -122,17 +120,19 @@ class Hound_RLHL_Control:
             odom.pose.pose.orientation.w,
         )
         rpy = euler_from_quaternion(quaternion)
-        pos = torch.zeros(6)
-        pos[0] = odom.pose.pose.position.x
-        pos[1] = odom.pose.pose.position.y
-        pos[2] = odom.pose.pose.position.z
+        new_pose[0] = odom.pose.pose.position.x
+        new_pose[1] = odom.pose.pose.position.y
+        new_pose[2] = odom.pose.pose.position.z
 
         #make sure angles are between 0 and 2pi
-        pos[3] = (rpy[0] + 2*np.pi) % (2*np.pi)
-        pos[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
-        pos[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
+        new_pose[3] = (rpy[0] + 2*np.pi) % (2*np.pi)
+        new_pose[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
+        new_pose[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
 
-        self.state[:6] = self.pos_angle(pos).numpy()
+        #low pass filter
+        self.pose = (1.0-self.alpha) * self.pose + self.alpha * new_pose
+
+        self.state[:6] = self.pos_angle(self.pose).numpy()
         self.state[6] = odom.twist.twist.linear.x
         self.state[7] = odom.twist.twist.linear.y
         self.state[8] = odom.twist.twist.linear.z
@@ -165,5 +165,5 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("ppo_relative4_2000.pt")
+    planner = Hound_RLHL_Control("ppo_relative3_1000.pt")
     rospy.spin()
