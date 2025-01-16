@@ -36,17 +36,16 @@ class Hound_RLHL_Control:
         self.pose = torch.zeros(6)
         self.start_action = False
 
-        match self.obs_type:
-            case "relative":
-                self.state = np.zeros(12, dtype=np.float32)
-                self.model = RLModel(name, acargs=(12,12,2))
-                self.include_last_action = False
-            case "blind":
-                self.state = np.zeros(14, dtype=np.float32)
-                self.model = RLModel(name, acargs=(14,14,2))
-                self.include_last_action = True
-            case _:
-                ValueError("must choose valid obs type")
+        if self.obs_type == "relative":
+            self.state = np.zeros(12, dtype=np.float32)
+            self.model = RLModel(name, acargs=(12,12,2))
+            self.include_last_action = False
+        elif self.obs_type == "blind":
+            self.state = np.zeros(14, dtype=np.float32)
+            self.model = RLModel(name, acargs=(14,14,2))
+            self.include_last_action = True
+        else:
+            ValueError("must choose valid obs type")
 
         waypoints = Waypoints()
         waypoints.generate_waypoints()
@@ -157,13 +156,12 @@ class Hound_RLHL_Control:
         #low pass filter
         self.pose = (1.0-self.alpha) * self.pose + self.alpha * new_pose
 
-        match self.obs_type:
-            case "relative":
-                self.obtain_relative_state(odom)
-            case "blind":
-                self.obtain_blind_state(odom)
-            case _:
-                ValueError("must choose valid obs type")
+        if self.obs_type == "relative":
+            self.obtain_relative_state(odom)
+        elif self.obs_type == "blind":
+            self.obtain_blind_state(odom)
+        else:
+            ValueError("must choose valid obs type")
     
     def obtain_blind_state(self, odom):
         self.state[:6] = self.pose.numpy()
