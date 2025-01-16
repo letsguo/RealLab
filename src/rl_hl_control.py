@@ -120,19 +120,20 @@ class Hound_RLHL_Control:
             rate.sleep()
 
     def send_ctrl(self, ctrl):
-        control_msg = AckermannDriveStamped()
-        control_msg.header.stamp = rospy.Time.now()
-        control_msg.header.frame_id = "base_link"
-        control_msg.drive.steering_angle = ctrl[1] * self.steering_max
-        control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
-        if self.include_last_action:
-            if self.start_action:
-                self.state[-2] = ctrl[0]
-                self.state[-1] = ctrl[1]
-            else:
-                self.state[-2] = 0.0
-                self.state[-1] = 0.0
-        self.control_pub.publish(control_msg)
+        if self.start_action:
+            control_msg = AckermannDriveStamped()
+            control_msg.header.stamp = rospy.Time.now()
+            control_msg.header.frame_id = "base_link"
+            control_msg.drive.steering_angle = ctrl[1] * self.steering_max
+            control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
+            if self.include_last_action:
+                if self.start_action:
+                    self.state[-2] = ctrl[0]
+                    self.state[-1] = ctrl[1]
+                else:
+                    self.state[-2] = 0.0
+                    self.state[-1] = 0.0
+            self.control_pub.publish(control_msg)
 
     def obtain_state(self, odom):
         ## obtain the state from the odometry and imu messages:
