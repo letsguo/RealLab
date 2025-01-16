@@ -45,6 +45,8 @@ class Hound_RLHL_Control:
                 self.state = np.zeros(14, dtype=np.float32)
                 self.model = RLModel(name, acargs=(14,14,2))
                 self.include_last_action = True
+            case _:
+                ValueError("must choose valid obs type")
 
         waypoints = Waypoints()
         waypoints.generate_waypoints()
@@ -160,6 +162,8 @@ class Hound_RLHL_Control:
                 self.obtain_relative_state(odom)
             case "blind":
                 self.obtain_blind_state(odom)
+            case _:
+                ValueError("must choose valid obs type")
     
     def obtain_blind_state(self, odom):
         self.state[:6] = self.pose.numpy()
@@ -204,5 +208,5 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("ppo_relative3_1000.pt")
+    planner = Hound_RLHL_Control("ppo_drift_mpcobs1_1400.pt", obs_type="blind")
     rospy.spin()
