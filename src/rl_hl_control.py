@@ -7,6 +7,7 @@ from nav_msgs.msg import Odometry, Path as navPath
 from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
+from mavros_msgs.msg import RCIn
 from utils.rl_policy import RLModel
 from utils.waypoints import Waypoints
 from visualization_msgs.msg import Marker, MarkerArray
@@ -23,18 +24,27 @@ from policy_factory import load_policy
 
 
 class Hound_RLHL_Control:
-    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, alpha = [0.2,0.2,0.2,0.2,0.2,0.2], speed_limit=10.0):
+    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, alpha = [0.2,0.2,0.2,0.2,0.2,0.2], obs_type="relative"):
         ## state variables
         self.state_init = False
-        self.state = np.zeros(12, dtype=np.float32)
         self.throttle_to_wheelspeed = throttle_to_wheelspeed
         self.steering_max = steering_max
         self.imu = None
         self.alpha = torch.tensor(alpha)
         self.odom_update = False
+        self.obs_type = obs_type
         self.pose = torch.zeros(6)
+        self.start_action = False
 
-        self.model = RLModel(name)
+        match self.obs_type:
+            case "relative":
+                self.state = np.zeros(12, dtype=np.float32)
+                self.model = RLModel(name, acargs=(12,12,2))
+                self.include_last_action = False
+            case "blind":
+                self.state = np.zeros(14, dtype=np.float32)
+                self.model = RLModel(name, acargs=(14,14,2))
+                self.include_last_action = True
 
         waypoints = Waypoints()
         waypoints.generate_waypoints()
@@ -43,6 +53,9 @@ class Hound_RLHL_Control:
         self.odom_sub = rospy.Subscriber(
             "/mavros/local_position/odom", Odometry, self.odom_callback
         )
+
+        self.rc_sub = rospy.Subscriber('/mavros/rc/in', RCIn, self.rcin_callback)
+
         self.imu_sub = rospy.Subscriber("/mavros/imu/data_raw", Imu, self.imu_callback)
         # self.grid_map_sub = rospy.Subscriber(
         #     "/grid_map_occlusion_inpainting/all_grid_map",
@@ -87,6 +100,9 @@ class Hound_RLHL_Control:
     def limits_callback(self, msg):
         self.hard_limit = msg.drive.speed
 
+    def rcin_callback(self, data):
+        self.start_action = data.channels[2] > 1300
+
     def main_loop(self):
         ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
         # it in a callback which causes it to create new contexts faster than it can delete the old ones leading to rapid memory growth
@@ -108,6 +124,13 @@ class Hound_RLHL_Control:
         control_msg.header.frame_id = "base_link"
         control_msg.drive.steering_angle = ctrl[1] * self.steering_max
         control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
+        if self.include_last_action:
+            if self.start_action:
+                self.state[-2] = ctrl[0]
+                self.state[-1] = ctrl[1]
+            else:
+                self.state[-2] = 0.0
+                self.state[-1] = 0.0
         self.control_pub.publish(control_msg)
 
     def obtain_state(self, odom):
@@ -132,6 +155,22 @@ class Hound_RLHL_Control:
         #low pass filter
         self.pose = (1.0-self.alpha) * self.pose + self.alpha * new_pose
 
+        match self.obs_type:
+            case "relative":
+                self.obtain_relative_state(odom)
+            case "blind":
+                self.obtain_blind_state(odom)
+    
+    def obtain_blind_state(self, odom):
+        self.state[:6] = self.pose.numpy()
+        self.state[6] = odom.twist.twist.linear.x
+        self.state[7] = odom.twist.twist.linear.y
+        self.state[8] = odom.twist.twist.linear.z
+        self.state[9] = self.imu.angular_velocity.x
+        self.state[10] = self.imu.angular_velocity.y
+        self.state[11] = self.imu.angular_velocity.z
+
+    def obtain_relative_state(self, odom):
         self.state[:6] = self.pos_angle(self.pose).numpy()
         self.state[6] = odom.twist.twist.linear.x
         self.state[7] = odom.twist.twist.linear.y
