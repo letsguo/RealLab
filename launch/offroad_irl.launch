@@ -1,12 +1,15 @@
 <launch>
     <include file="$(find mushr_mocap)/launch/car_odom_publisher.launch" />
+    <include file="$(find realsense2_camera)/launch/rs_t265.launch"/>
+    
+    <node pkg="hound_core" type="odom_publisher.py" name="odometry_processor" output="screen"/>
 
     <node pkg="hound_core" type="HAL_9000.py" name="HAL" output="screen"/>
     
     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core offroad_apm.launch" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="30 hound_core X4.launch" name="lidar_timed" output="screen"/>
     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="50 hound_core vesc_driver_node.launch" name="vesc_timed" output="screen"/>
-    <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="70 hound_core realsense_d455_HOUND.launch" name="camera_timed" output="screen"/>
+    <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="70 hound_core realsense_d455_HOUND.launch" name="camera_timed" output="screen"/> -->
 
     <!-- uncomment the following two lines to use visual odometry (make sure to set EK3_SRC2_VELXY and EK3_SRC2_VELZ to 6 in ardupilot params) -->
 <!--     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="90 hound_core HOUND_vis_odom.launch" name="vis_odom" output="log"/>
