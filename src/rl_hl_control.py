@@ -120,20 +120,21 @@ class Hound_RLHL_Control:
             rate.sleep()
 
     def send_ctrl(self, ctrl):
-        if self.start_action:
-            control_msg = AckermannDriveStamped()
-            control_msg.header.stamp = rospy.Time.now()
-            control_msg.header.frame_id = "base_link"
-            control_msg.drive.steering_angle = ctrl[1] * self.steering_max
-            control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
-            if self.include_last_action:
-                if self.start_action:
-                    self.state[-2] = ctrl[0]
-                    self.state[-1] = ctrl[1]
-                else:
-                    self.state[-2] = 0.0
-                    self.state[-1] = 0.0
-            self.control_pub.publish(control_msg)
+        control_msg = AckermannDriveStamped()
+        control_msg.header.stamp = rospy.Time.now()
+        control_msg.header.frame_id = "base_link"
+        control_msg.drive.steering_angle = ctrl[1] * self.steering_max
+        control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
+        if not self.start_action:
+            control_msg.drive.speed = 0
+        if self.include_last_action:
+            if self.start_action:
+                self.state[-2] = ctrl[0]
+                self.state[-1] = ctrl[1]
+            else:
+                self.state[-2] = 0.0
+                self.state[-1] = 0.0
+        self.control_pub.publish(control_msg)
 
     def obtain_state(self, odom):
         ## obtain the state from the odometry and imu messages:
@@ -207,5 +208,5 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("giddy_cherry_model_2700.pt", obs_type="blind")
+    planner = Hound_RLHL_Control("ppo_drift_mpcobs3_900.pt", obs_type="blind")
     rospy.spin()

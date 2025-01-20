@@ -60,7 +60,7 @@ class OdometryProcessorNode:
         ]
         inverse = quaternion_inverse(self.relative_quat)
         self.offset_quat = quaternion_multiply(inverse, self.absolute_quat)
-        xyz_rel = self.rotate_vector(self.relative_xyz, self.absolute_quat)
+        xyz_rel = self.rotate_vector(self.relative_xyz, self.offset_quat)
         xyz_gt = np.array([
             msg.pose.pose.position.x,
             msg.pose.pose.position.y,
@@ -85,14 +85,14 @@ class OdometryProcessorNode:
             msg.pose.pose.position.y,
             msg.pose.pose.position.z
         ])
-        self.relative_xyz = self.rotate_vector(relative_xyz, self.cam_rotation_quat)
+        self.relative_xyz = self.rotate_vector(relative_xyz, self.vel_rotation_quat)
 
         if not self.offsets_init:
             self.set_offsets()
             self.offsets_init = True
 
         quat = quaternion_multiply(self.relative_quat, self.offset_quat)
-        xyz = self.rotate_vector(self.relative_xyz, self.absolute_quat) + self.xyz_offsets
+        xyz = self.rotate_vector(self.relative_xyz, self.offset_quat) + self.xyz_offsets
         self.odom.pose.pose.orientation.x = quat[0]
         self.odom.pose.pose.orientation.y = quat[1]
         self.odom.pose.pose.orientation.z = quat[2]
