@@ -29,4 +29,13 @@
     <node pkg="hound_core" type="rl_hl_control.py" name="high_level_controller" output="screen"/>
    
     <!-- <node pkg="hound_core" type="hound_hl_control.py" name="high_level_controller" output="screen"/> -->
+    <!-- Declare the visualize parameter -->
+    <param name="visualize" value="false" />
+
+    <!-- Group of nodes launched only if visualize is true -->
+    <group if="$(arg visualize)">
+        <node pkg="republishers" type="state_spliter.py" name="state_splitter" output="screen" />
+        <node pkg="republishers" type="pose_republisher.py" name="pose_republisher" output="screen" />
+        <node pkg="republishers" type="action_republisher.py" name="action_republisher" output="screen" />
+    </group>
 </launch>
