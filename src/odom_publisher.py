@@ -3,7 +3,7 @@
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped
-from tf.transformations import quaternion_inverse, quaternion_multiply, quaternion_matrix
+from tf.transformations import quaternion_inverse, quaternion_multiply, quaternion_matrix, unit_vector
 import numpy as np
 
 class OdometryProcessorNode:
@@ -24,9 +24,8 @@ class OdometryProcessorNode:
         self.xyz_offsets = np.array([1.0,0.0,0.0])
         
         self.offset_quat = [0.0,0.0,0.0,1.0]
-        self.cam_rotation_quat = [0.0,0.0,1.0,0.0]
-        self.vel_rotation_quat = [1.0,0.0,0.0,0.0]
-        self.angular_vel_rotation_quat = [0.0,1.0,0.0,0.0]
+        self.cam_rotation_quat = [1.0,0.0,0.0,0.0]
+        self.rel_init = [0.0,0.0,0.0,1.0]
         self.relative_quat = [0.0,0.0,0.0,1.0]
         self.odom = Odometry()
         self.odom.header.frame_id = "map"
@@ -50,6 +49,12 @@ class OdometryProcessorNode:
         # Rotate the vector
         rotated_vector = np.dot(rotation_matrix, vector)
         return rotated_vector
+    
+    def rotate_quaternion(self, quaternion, transformation):
+        return quaternion_multiply(
+            quaternion_multiply(transformation, quaternion),
+            quaternion_inverse(transformation)
+        )
 
     def gt_callback(self, msg):
         self.absolute_quat = [
@@ -58,6 +63,7 @@ class OdometryProcessorNode:
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
         ]
+        self.rel_init = self.relative_quat
         inverse = quaternion_inverse(self.relative_quat)
         self.offset_quat = quaternion_multiply(inverse, self.absolute_quat)
         xyz_rel = self.rotate_vector(self.relative_xyz, self.offset_quat)
@@ -71,6 +77,7 @@ class OdometryProcessorNode:
     def set_offsets(self):
         inverse = quaternion_inverse(self.relative_quat)
         self.offset_quat = quaternion_multiply(inverse, self.absolute_quat)
+        self.rel_init = self.relative_quat
 
     def relative_callback(self, msg):
         relative_quat = [
@@ -79,19 +86,21 @@ class OdometryProcessorNode:
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
         ]
-        self.relative_quat = quaternion_multiply(relative_quat, self.cam_rotation_quat)
+        relative_quat = quaternion_multiply(quaternion_inverse(self.angular_rotation_quat), relative_quat)
+        self.relative_quat = self.rotate_quaternion(relative_quat, self.cam_rotation_quat)
         relative_xyz = np.array([
             msg.pose.pose.position.x,
             msg.pose.pose.position.y,
             msg.pose.pose.position.z
         ])
-        self.relative_xyz = self.rotate_vector(relative_xyz, self.vel_rotation_quat)
+        self.relative_xyz = self.rotate_vector(relative_xyz, self.cam_rotation_quat)
 
         if not self.offsets_init:
             self.set_offsets()
             self.offsets_init = True
 
-        quat = quaternion_multiply(self.relative_quat, self.offset_quat)
+        quat = self.rotate_quaternion(self.relative_quat, quaternion_inverse(self.rel_init))
+        quat = self.rotate_quaternion(quat, self.absolute_quat)
         xyz = self.rotate_vector(self.relative_xyz, self.offset_quat) + self.xyz_offsets
         self.odom.pose.pose.orientation.x = quat[0]
         self.odom.pose.pose.orientation.y = quat[1]
@@ -107,7 +116,7 @@ class OdometryProcessorNode:
             msg.twist.twist.linear.y,
             msg.twist.twist.linear.z            
         ])
-        xyz_vel = self.rotate_vector(xyz_vel, self.vel_rotation_quat)
+        xyz_vel = self.rotate_vector(xyz_vel, self.cam_rotation_quat)
         self.odom.twist.twist.linear.x = xyz_vel[0]
         self.odom.twist.twist.linear.y = xyz_vel[1]
         self.odom.twist.twist.linear.z = xyz_vel[2]
@@ -117,7 +126,6 @@ class OdometryProcessorNode:
             msg.twist.twist.angular.y,
             msg.twist.twist.angular.z            
         ])
-        xyz_angular_vel = self.rotate_vector(xyz_angular_vel, self.angular_vel_rotation_quat)
         xyz_angular_vel = self.rotate_vector(xyz_angular_vel, self.cam_rotation_quat)
         self.odom.twist.twist.angular.x = xyz_angular_vel[0]
         self.odom.twist.twist.angular.y = xyz_angular_vel[1]
