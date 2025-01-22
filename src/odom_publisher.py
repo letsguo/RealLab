@@ -26,6 +26,9 @@ class OdometryProcessorNode:
         self.offset_quat = [0.0,0.0,0.0,1.0]
         self.cam_rotation_quat = [1.0,0.0,0.0,0.0]
         self.rel_init = [0.0,0.0,0.0,1.0]
+        self.relative_angle_init = [0.0,0.0,0.0,1.0]
+        self.absolute_angle_init = self.absolute_quat
+        self.relative_raw = [0.0,0.0,0.0,1.0]
         self.relative_quat = [0.0,0.0,0.0,1.0]
         self.odom = Odometry()
         self.odom.header.frame_id = "map"
@@ -33,8 +36,7 @@ class OdometryProcessorNode:
         self.odom_update = False
         self.offsets_init = False
 
-        self.relative_xyz = np.array([0.0,0.0,0.0])
-        
+        self.relative_xyz = np.array([0.0,0.0,0.0])        
 
         rospy.loginfo('Odometry Processor Node started')
 
@@ -63,9 +65,12 @@ class OdometryProcessorNode:
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
         ]
-        self.rel_init = self.relative_quat
-        inverse = quaternion_inverse(self.relative_quat)
-        self.offset_quat = quaternion_multiply(inverse, self.absolute_quat)
+        self.rel_init = self.relative_raw
+        rel_inverse = quaternion_inverse(self.relative_angle_init)
+        abs_inverse = quaternion_inverse(self.absolute_angle_init)
+        relative_diff = quaternion_inverse(quaternion_multiply(rel_inverse, self.relative_quat))
+        absolute_diff = quaternion_multiply(abs_inverse, self.absolute_quat)
+        self.offset_quat = quaternion_multiply(quaternion_multiply(relative_diff, absolute_diff), self.absolute_angle_init)
         xyz_rel = self.rotate_vector(self.relative_xyz, self.offset_quat)
         xyz_gt = np.array([
             msg.pose.pose.position.x,
@@ -75,19 +80,22 @@ class OdometryProcessorNode:
         self.xyz_offsets = xyz_gt - xyz_rel
 
     def set_offsets(self):
-        inverse = quaternion_inverse(self.relative_quat)
-        self.offset_quat = quaternion_multiply(inverse, self.absolute_quat)
-        self.rel_init = self.relative_quat
+        self.relative_angle_init = self.relative_quat
+        self.offset_quat = self.absolute_quat
 
     def relative_callback(self, msg):
-        relative_quat = [
+        quat = [
             msg.pose.pose.orientation.x,
             msg.pose.pose.orientation.y,
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
         ]
-        relative_quat = quaternion_multiply(quaternion_inverse(self.angular_rotation_quat), relative_quat)
-        self.relative_quat = self.rotate_quaternion(relative_quat, self.cam_rotation_quat)
+        self.relative_raw = self.rotate_quaternion(quat, self.cam_rotation_quat)
+        if not self.offsets_init:
+            self.rel_init = self.relative_raw
+
+        self.relative_quat = quaternion_multiply(quaternion_inverse(self.rel_init), self.relative_raw)
+
         relative_xyz = np.array([
             msg.pose.pose.position.x,
             msg.pose.pose.position.y,
@@ -99,8 +107,7 @@ class OdometryProcessorNode:
             self.set_offsets()
             self.offsets_init = True
 
-        quat = self.rotate_quaternion(self.relative_quat, quaternion_inverse(self.rel_init))
-        quat = self.rotate_quaternion(quat, self.absolute_quat)
+        quat = quaternion_multiply(self.absolute_quat, self.relative_quat)
         xyz = self.rotate_vector(self.relative_xyz, self.offset_quat) + self.xyz_offsets
         self.odom.pose.pose.orientation.x = quat[0]
         self.odom.pose.pose.orientation.y = quat[1]
