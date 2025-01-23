@@ -21,6 +21,7 @@ import torch
 from Bezier import *
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from policy_factory import load_policy
+from utils.generate_elevation_map import crop_heightmap
 
 
 class Hound_RLHL_Control:
@@ -140,8 +141,8 @@ class Hound_RLHL_Control:
             control_msg.drive.speed = 0
         if self.include_last_action:
             if self.start_action:
-                self.state[-2] = ctrl[0]
-                self.state[-1] = ctrl[1]
+                self.state[9] = ctrl[0]
+                self.state[10] = ctrl[1]
             else:
                 self.state[-2] = 0.0
                 self.state[-1] = 0.0
@@ -181,6 +182,8 @@ class Hound_RLHL_Control:
             self.obtain_relative_state(odom)
         elif self.obs_type == "blind":
             self.obtain_blind_state(odom)
+        elif self.obs_type == "elevation":
+            self.obtain_elevation_state(odom)
         else:
             ValueError("must choose valid obs type")
 
@@ -201,6 +204,24 @@ class Hound_RLHL_Control:
         self.state[9] = self.imu.angular_velocity.x
         self.state[10] = self.imu.angular_velocity.y
         self.state[11] = self.imu.angular_velocity.z
+
+    def get_local_elevation_map(self, x, y, width=20):
+        elevation_map = crop_heightmap(self.heightmap, x, y, width=width)
+        return elevation_map.flatten()
+    
+    def obtain_elevation_state(self, odom):
+        #Obtain state for elevation policy
+        x=self.pose[0].numpy()
+        y=self.pose[1].numpy()
+        self.state[:3] = self.pose[3:6].numpy() #obtain the orientation
+        self.state[3] = odom.twist.twist.linear.x
+        self.state[4] = odom.twist.twist.linear.y
+        self.state[5] = odom.twist.twist.linear.z 
+        self.state[6] = self.imu.angular_velocity.x
+        self.state[7] = self.imu.angular_velocity.y
+        self.state[8] = self.imu.angular_velocity.z
+        #TODO: in the observation term I also have the last action term, how do I include it here?  
+        self.state[11:636] = self.get_local_evelation_map(x, y, width=20) # this should be an array of shape (N,) where N = size*size, here it will be 400(taking 20 as the size)
 
     def odom_callback(self, odom):
         if self.imu is None:
