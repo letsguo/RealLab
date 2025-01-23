@@ -64,7 +64,7 @@ def rotate_matrix(matrix, degrees):
     return interpolated.astype(matrix.dtype)
 
 def crop_heightmap(heightmap, x, y, yaw, width=20):
-    angle_rad = np.deg2rad(yaw)
+    angle_rad = yaw
     heightmap = rotate_matrix(heightmap, yaw)
     angle_rad = -angle_rad
     cos_theta = np.cos(angle_rad)

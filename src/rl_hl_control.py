@@ -222,7 +222,7 @@ class Hound_RLHL_Control:
         self.state[7] = self.imu.angular_velocity.y
         self.state[8] = self.imu.angular_velocity.z
         #TODO: in the observation term I also have the last action term, how do I include it here?  
-        self.state[11:636] = self.get_local_evelation_map(x, y, yaw, width=25) # this should be an array of shape (N,) where N = size*size, here it will be 400(taking 20 as the size)
+        self.state[11:687] = self.get_local_elevation_map(x, y, yaw, width=26) # this should be an array of shape (N,) where N = size*size, here it will be 400(taking 20 as the size)
 
     def odom_callback(self, odom):
         if self.imu is None:
