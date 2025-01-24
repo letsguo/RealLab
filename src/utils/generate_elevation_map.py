@@ -2,7 +2,7 @@ import numpy as np
 
 MAP_RESOLUTION = 0.1
 
-def rotate_matrix(matrix, degrees):
+def rotate_matrix(matrix, radians):
     """
     Rotates a 2D numpy matrix counter-clockwise around its center by specified degrees.
     
@@ -13,7 +13,7 @@ def rotate_matrix(matrix, degrees):
     Returns:
     numpy.ndarray: Rotated matrix with the same shape as the input.
     """
-    theta = np.radians(-degrees)  # Convert to radians and negate for correct direction
+    theta = radians  # Convert to radians and negate for correct direction
     c, s = np.cos(theta), np.sin(theta)
     rotation_matrix = np.array([[c, s], [-s, c]])  # Rotation matrix
     
@@ -64,9 +64,8 @@ def rotate_matrix(matrix, degrees):
     return interpolated.astype(matrix.dtype)
 
 def crop_heightmap(heightmap, x, y, yaw, width=20):
-    angle_rad = yaw
-    heightmap = rotate_matrix(heightmap, yaw)
-    angle_rad = -angle_rad
+    angle_rad = -yaw
+    heightmap = rotate_matrix(heightmap, angle_rad)
     cos_theta = np.cos(angle_rad)
     sin_theta = np.sin(angle_rad)
     new_x = x * cos_theta - y * sin_theta
