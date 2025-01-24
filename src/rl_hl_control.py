@@ -57,12 +57,14 @@ class Hound_RLHL_Control:
                                    "critic_hidden_dims": hidden_shape
                                 })
             self.include_last_action = True
+            self.cv_bridge = CvBridge()
+            self.image_shape = (40, 80)
+            self.resize_shape = (80, 60)
+            self.image = np.zeros(self.image_shape[0]*self.image_shape[1])
+            self.last_action_offset = 40 * 80 + 6
         else:
             ValueError("must choose valid obs type")
-        self.cv_bridge = CvBridge()
-        self.image_shape = (40, 80)
-        self.resize_shape = (60, 80)
-
+        
         waypoints = Waypoints()
         waypoints.generate_waypoints()
         print("\n1\n")
@@ -118,7 +120,8 @@ class Hound_RLHL_Control:
         self.hard_limit = msg.drive.speed
 
     def rcin_callback(self, data):
-        self.start_action = data.channels[2] > 1300
+        # self.start_action = data.channels[2] > 1300
+        pass
 
     def main_loop(self):
         ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
@@ -188,6 +191,8 @@ class Hound_RLHL_Control:
             self.obtain_blind_state(odom)
         elif self.obs_type == "elevation":
             self.obtain_elevation_state(odom)
+        elif self.obs_type == "rgb":
+            self.obtain_rgb_state(odom)
         else:
             ValueError("must choose valid obs type")
 
