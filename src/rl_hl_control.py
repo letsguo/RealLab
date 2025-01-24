@@ -233,7 +233,7 @@ class Hound_RLHL_Control:
         self.state[:image_offset] = self.image
         self.state[image_offset] = odom.twist.twist.linear.x
         self.state[image_offset + 1] = odom.twist.twist.linear.y
-        self.state[image_offset + 2] = odom.twist.twist.linear.z 
+        self.state[image_offset + 2] = odom.twist.twist.linear.z
         self.state[image_offset + 3] = self.imu.angular_velocity.x
         self.state[image_offset + 4] = self.imu.angular_velocity.y
         self.state[image_offset + 5] = self.imu.angular_velocity.z
