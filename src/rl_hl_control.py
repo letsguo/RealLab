@@ -5,7 +5,7 @@ import numpy as np
 # from hound_mppi import mppi
 from nav_msgs.msg import Odometry, Path as navPath
 from std_msgs.msg import Float32MultiArray
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Imu, Image
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from mavros_msgs.msg import RCIn
 from utils.rl_policy import RLModel
@@ -19,6 +19,7 @@ import yaml
 import time
 import torch
 from Bezier import *
+from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from policy_factory import load_policy
 from utils.generate_elevation_map import crop_heightmap
@@ -58,6 +59,9 @@ class Hound_RLHL_Control:
             self.include_last_action = True
         else:
             ValueError("must choose valid obs type")
+        self.cv_bridge = CvBridge()
+        self.image_shape = (40, 80)
+        self.resize_shape = (60, 80)
 
         waypoints = Waypoints()
         waypoints.generate_waypoints()
@@ -141,11 +145,11 @@ class Hound_RLHL_Control:
             control_msg.drive.speed = 0
         if self.include_last_action:
             if self.start_action:
-                self.state[9] = ctrl[0]
-                self.state[10] = ctrl[1]
+                self.state[self.last_action_offset] = ctrl[0]
+                self.state[self.last_action_offset + 1] = ctrl[1]
             else:
-                self.state[-2] = 0.0
-                self.state[-1] = 0.0
+                self.state[self.last_action_offset] = 0.0
+                self.state[self.last_action_offset + 1] = 0.0
         self.control_pub.publish(control_msg)
 
     def obtain_state(self, odom):
@@ -223,6 +227,16 @@ class Hound_RLHL_Control:
         self.state[8] = self.imu.angular_velocity.z
         #TODO: in the observation term I also have the last action term, how do I include it here?  
         self.state[11:687] = self.get_local_elevation_map(x, y, yaw, width=26) # this should be an array of shape (N,) where N = size*size, here it will be 400(taking 20 as the size)
+
+    def obtain_rgb_state(self, odom):
+        image_offset = self.image_shape[0] * self.image_shape[1]
+        self.state[:image_offset] = self.image
+        self.state[image_offset] = odom.twist.twist.linear.x
+        self.state[image_offset + 1] = odom.twist.twist.linear.y
+        self.state[image_offset + 2] = odom.twist.twist.linear.z 
+        self.state[image_offset + 3] = self.imu.angular_velocity.x
+        self.state[image_offset + 4] = self.imu.angular_velocity.y
+        self.state[image_offset + 5] = self.imu.angular_velocity.z
 
     def odom_callback(self, odom):
         if self.imu is None:
