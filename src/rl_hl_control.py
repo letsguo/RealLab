@@ -24,15 +24,15 @@ from policy_factory import load_policy
 
 
 class Hound_RLHL_Control:
-    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, alpha = [0.2,0.2,0.2,0.2,0.2,0.2], obs_type="relative"):
+    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, rate=50, obs_type="relative"):
         ## state variables
         self.state_init = False
         self.throttle_to_wheelspeed = throttle_to_wheelspeed
         self.steering_max = steering_max
         self.imu = None
-        self.alpha = torch.tensor(alpha)
         self.odom_update = False
         self.obs_type = obs_type
+        self.rate = rate
         self.pose = torch.zeros(6)
         self.start_action = False
 
@@ -84,7 +84,7 @@ class Hound_RLHL_Control:
         )
         self.state_pub = rospy.Publisher(
             "hl_controller/state", Float32MultiArray, queue_size=1
-        ) 
+        )
 
         self.marker_pub = rospy.Publisher("marker", MarkerArray, queue_size=1)
         self.reset_pub = rospy.Publisher(
@@ -107,7 +107,7 @@ class Hound_RLHL_Control:
     def main_loop(self):
         ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
         # it in a callback which causes it to create new contexts faster than it can delete the old ones leading to rapid memory growth
-        rate = rospy.Rate(20)
+        rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             if (self.state_init and self.odom_update):
                 ctrl = self.model.inference(self.state)
@@ -155,16 +155,13 @@ class Hound_RLHL_Control:
         new_pose[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
         new_pose[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
 
-        #low pass filter
-        self.pose = (1.0-self.alpha) * self.pose + self.alpha * new_pose
-
         if self.obs_type == "relative":
             self.obtain_relative_state(odom)
         elif self.obs_type == "blind":
             self.obtain_blind_state(odom)
         else:
             ValueError("must choose valid obs type")
-    
+
     def obtain_blind_state(self, odom):
         self.state[:6] = self.pose.numpy()
         self.state[6] = odom.twist.twist.linear.x
@@ -208,5 +205,5 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("circular_rift_model_4900", obs_type="blind")
+    planner = Hound_RLHL_Control("1-24-25/radiant-yogurt-1347_model_8050.pt", obs_type="blind")
     rospy.spin()
