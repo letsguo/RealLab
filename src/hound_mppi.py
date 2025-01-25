@@ -1,4 +1,4 @@
-"#!/usr/bin/env python3
+#!/usr/bin/env python3
 from hound_policy import HoundPolicyBase
 import numpy as np
 import torch
