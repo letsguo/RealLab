@@ -24,7 +24,8 @@ from policy_factory import load_policy
 
 
 class Hound_RLHL_Control:
-    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, rate=50, obs_type="relative"):
+    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, rate=50, obs_type="relative",
+                 hidden_shape=[64, 64]):
         ## state variables
         self.state_init = False
         self.throttle_to_wheelspeed = throttle_to_wheelspeed
@@ -42,7 +43,11 @@ class Hound_RLHL_Control:
             self.include_last_action = False
         elif self.obs_type == "blind":
             self.state = np.zeros(14, dtype=np.float32)
-            self.model = RLModel(name, acargs=(14,14,2))
+            self.model = RLModel(name, acargs=(14,14,2),
+                                ackwargs={
+                                   "hidden_shape": hidden_shape,
+                                   "critic_hidden_shape": hidden_shape
+                                })
             self.include_last_action = True
         else:
             ValueError("must choose valid obs type")
@@ -155,6 +160,8 @@ class Hound_RLHL_Control:
         new_pose[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
         new_pose[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
 
+        self.pose = new_pose
+
         if self.obs_type == "relative":
             self.obtain_relative_state(odom)
         elif self.obs_type == "blind":
@@ -205,5 +212,7 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
-    planner = Hound_RLHL_Control("1-24-25/radiant-yogurt-1347_model_8050.pt", obs_type="blind")
+    planner = Hound_RLHL_Control("1-24-25/radiant-yogurt-1347_model_8050.pt", obs_type="blind",
+                                 throttle_to_wheelspeed=3.0, rate=50,
+                                 hidden_shape=[64, 64])
     rospy.spin()
