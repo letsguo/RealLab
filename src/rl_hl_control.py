@@ -120,8 +120,7 @@ class Hound_RLHL_Control:
         self.hard_limit = msg.drive.speed
 
     def rcin_callback(self, data):
-        # self.start_action = data.channels[2] > 1300
-        pass
+        self.start_action = data.channels[2] > 1300
 
     def main_loop(self):
         ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
