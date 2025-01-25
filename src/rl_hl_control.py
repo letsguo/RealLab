@@ -213,6 +213,7 @@ class Hound_RLHL_Control:
 
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
+    planner = Hound_RLHL_Control("circular_rift_model_4900", obs_type="blind")
     # planner = Hound_RLHL_Control("1-24-25/radiant-yogurt-1347_model_8050.pt",
     planner = Hound_RLHL_Control("1-25-25/comfy-night-1372_model_4950.pt",
                                  obs_type="blind",
