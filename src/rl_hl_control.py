@@ -68,7 +68,7 @@ class Hound_RLHL_Control:
 
         self.rc_sub = rospy.Subscriber('/mavros/rc/in', RCIn, self.rcin_callback)
 
-        self.imu_sub = rospy.Subscriber("/mavros/imu/data_raw", Imu, self.imu_callback)
+        self.imu_sub = rospy.Subscriber("/mavros/imu/data", Imu, self.imu_callback)
         # self.grid_map_sub = rospy.Subscriber(
         #     "/grid_map_occlusion_inpainting/all_grid_map",
         #     GridMap,
@@ -156,14 +156,23 @@ class Hound_RLHL_Control:
             odom.pose.pose.orientation.z,
             odom.pose.pose.orientation.w,
         )
+
         rpy = euler_from_quaternion(quaternion)
         new_pose[0] = odom.pose.pose.position.x
         new_pose[1] = odom.pose.pose.position.y
         new_pose[2] = odom.pose.pose.position.z
 
         #make sure angles are between 0 and 2pi
-        new_pose[3] = (rpy[0] + 2*np.pi) % (2*np.pi)
-        new_pose[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
+        imu_quaternion = (
+            self.imu.orientation.x,
+            self.imu.orientation.y,
+            self.imu.orientation.z,
+            self.imu.orientation.w,
+        )
+        rpy_imu = euler_from_quaternion(imu_quaternion)
+
+        new_pose[3] = (rpy_imu[0] + 2*np.pi) % (2*np.pi)
+        new_pose[4] = (rpy_imu[1] + 2*np.pi) % (2*np.pi)
         new_pose[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
 
         self.pose = new_pose
