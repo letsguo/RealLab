@@ -24,26 +24,31 @@ from policy_factory import load_policy
 
 
 class Hound_RLHL_Control:
-    def __init__(self, name, throttle_to_wheelspeed= 5.0, steering_max = 0.488, rate=50, obs_type="relative",
-                 hidden_shape=[64, 64]):
+    def __init__(self, policy):
+        with open(f"/root/catkin_ws/src/hound_core/config/policies/{policy}.yaml") as f:
+            config_data = yaml.safe_load(f)
+
+        self.throttle_to_wheelspeed = config_data["throttle_to_wheelspeed"]
+        self.steering_max = config_data["steering_max"]
+        self.rate = config_data["rate"]
+        self.obs_type = config_data["obs_type"]
+        hidden_shape = config_data["hidden_shape"]
+        model_path = config_data["model_path"]
+
         ## state variables
         self.state_init = False
-        self.throttle_to_wheelspeed = throttle_to_wheelspeed
-        self.steering_max = steering_max
         self.imu = None
         self.odom_update = False
-        self.obs_type = obs_type
-        self.rate = rate
         self.pose = torch.zeros(6)
         self.start_action = False
 
         if self.obs_type == "relative":
             self.state = np.zeros(12, dtype=np.float32)
-            self.model = RLModel(name, acargs=(12,12,2))
+            self.model = RLModel(model_path, acargs=(12,12,2))
             self.include_last_action = False
         elif self.obs_type == "blind":
             self.state = np.zeros(14, dtype=np.float32)
-            self.model = RLModel(name,
+            self.model = RLModel(model_path,
                                 acargs=(14,14,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,

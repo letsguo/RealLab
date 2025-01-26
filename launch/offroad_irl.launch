@@ -1,15 +1,40 @@
 <launch>
-    <include file="$(find mushr_mocap)/launch/car_odom_publisher.launch" />
-    <include file="$(find realsense2_camera)/launch/rs_t265.launch"/>
-    
-    <node pkg="hound_core" type="odom_publisher.py" name="odometry_processor" output="screen"/>
+    <arg name="visualize" default="false" />
+    <arg name="robot_name" default="hound1" />
+    <arg name="policy" default="drift" />
 
-    <node pkg="hound_core" type="HAL_9000.py" name="HAL" output="screen"/>
-    
-    <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core offroad_apm.launch" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
-    <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="30 hound_core X4.launch" name="lidar_timed" output="screen"/>
+
+    <!-- for elevation launch the object publisher to keep track of object poses -->
+    <group if="$eval $(arg policy) == 'elevation'">
+        <include file="$(find mushr_mocap)/launch/object_publisher.launch">
+            <arg name="asset_name" value="$(arg robot_name)" />
+        <include/>
+    </group>
+    <!-- otherwise just pulish car odom -->
+    <group unless="$eval $(arg policy) == 'elevation'">
+        <include file="$(find mushr_mocap)/launch/car_odom_publisher.launch">
+            <arg name="asset_name" value="$(arg robot_name)" />
+        <include/>
+    </group>
+
+    <!-- launching vio if the robot is hound1, otherwise launch depth camera-->
+    <group if ="$eval $(arg robot_name) == 'hound1'">
+        <include file="$(find realsense2_camera)/launch/rs_t265.launch"/>
+        <node pkg="hound_core" type="odom_publisher.py" name="odometry_processor" output="screen"/>
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core offroad_apm.launch" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
+    </group>
+    <group unless="$eval $(arg robot_name) == 'hound1'">
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="5 hound_core realsense_d455_HOUND.launch" name="camera_timed" output="screen"/>
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core offroad_apm.launch" name="apm_timed" output="screen" launch-prefix="nice -n -1">
+            <arg name="fcu_url" value="/dev/ttyACM1:921600" />
+        <node/>
+    </group>
+
+    <!-- launching the base hound system -->
+    <node pkg="hound_core" type="HAL_9000.py" name="HAL" output="screen"/>    
     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="50 hound_core vesc_driver_node.launch" name="vesc_timed" output="screen"/>
-    <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="70 hound_core realsense_d455_HOUND.launch" name="camera_timed" output="screen"/> -->
+
+    <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="30 hound_core X4.launch" name="lidar_timed" output="screen"/> -->
 
     <!-- uncomment the following two lines to use visual odometry (make sure to set EK3_SRC2_VELXY and EK3_SRC2_VELZ to 6 in ardupilot params) -->
 <!--     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="90 hound_core HOUND_vis_odom.launch" name="vis_odom" output="log"/>
@@ -26,11 +51,11 @@
     <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="15 elevation_mapping_cupy elevation_mapping_cupy_no_vis.launch" name="elevation_mapping" output="log"/>
     <include file="$(find ntrip_ros)/launch/ntripclient.launch"/>  -->
 
-    <node pkg="hound_core" type="rl_hl_control.py" name="high_level_controller" output="screen"/>
+    <node pkg="hound_core" type="rl_hl_control.py" name="high_level_controller" output="screen">
+        <arg name="policy" value="$(arg policy)" />
+    </node>
    
     <!-- <node pkg="hound_core" type="hound_hl_control.py" name="high_level_controller" output="screen"/> -->
-    <!-- Declare the visualize parameter -->
-    <param name="visualize" value="false" />
 
     <!-- Group of nodes launched only if visualize is true -->
     <group if="$(arg visualize)">
