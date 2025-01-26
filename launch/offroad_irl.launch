@@ -3,6 +3,7 @@
     <arg name="robot_name" default="hound1" />
     <arg name="policy" default="drift" />
 
+    <param name="policy" value="$(arg policy)" />
 
     <!-- for elevation launch the object publisher to keep track of object poses -->
     <group if="$eval $(arg policy) == 'elevation'">
