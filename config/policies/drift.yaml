@@ -1,4 +1,4 @@
-throttle_to_wheelspeed: 5.0
+throttle_to_wheelspeed: 3.0
 model_path: "1-24-25/radiant-yogurt-1347_model_8050.pt"
 steering_max: 0.488
 rate: 50
