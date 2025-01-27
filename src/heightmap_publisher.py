@@ -56,7 +56,10 @@ class BlockHeightmapGenerator:
             rate.sleep()
 
     def rcin_callback(self, data):
-        self.car_off = data.channels[2] < 1100
+        try:
+            self.car_off = data.channels[2] < 1100        
+        except Exception as e:
+            pass
 
     def pose_callback(self, msg, obj_name):
         """Process raw pose data, apply offsets, and store block information"""

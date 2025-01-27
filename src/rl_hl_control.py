@@ -87,7 +87,7 @@ class Hound_RLHL_Control:
             self.last_action_offset = 12
             self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
             self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
-            self.goal = np.zeros(3, dtype=np.float32)
+            self.goal = np.array(config_data["goal"], dtype=np.float32)
         else:
             ValueError("must choose valid obs type")
         
@@ -146,7 +146,10 @@ class Hound_RLHL_Control:
         self.hard_limit = msg.drive.speed
 
     def rcin_callback(self, data):
-        self.start_action = data.channels[2] > 1300
+        try:
+            self.start_action = data.channels[2] > 1300
+        except Exception as e:
+            pass
 
     def main_loop(self):
         ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
