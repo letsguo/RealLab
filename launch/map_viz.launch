@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="hound_core" type="map_viz.py" name="map_viz" output="screen" />
+</launch>

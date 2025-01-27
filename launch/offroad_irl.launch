@@ -61,6 +61,6 @@
         <!-- <node pkg="hound_core" type="state_spliter.py" name="state_splitter" output="screen" />
         <node pkg="hound_core" type="pose_republisher.py" name="pose_republisher" output="screen" />
         <node pkg="hound_core" type="action_republisher.py" name="action_republisher" output="screen" /> -->
-        <node pkg="republishers" type="map_viz.py" name="map_viz" output="screen" />
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core map_viz.launch" name="map_timed" output="screen" />
     </group>
 </launch>
