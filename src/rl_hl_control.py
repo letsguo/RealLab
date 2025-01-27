@@ -75,6 +75,19 @@ class Hound_RLHL_Control:
             self.last_action_offset = 9
             self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
             self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
+        elif self.obs_type == "goal_based_elevation":
+            self.state = np.zeros(690, dtype=np.float32)
+            self.model = RLModel(model_path,
+                                acargs=(690,690,2),
+                                ackwargs={
+                                   "actor_hidden_dims": hidden_shape,
+                                   "critic_hidden_dims": hidden_shape
+                                })
+            self.include_last_action = True
+            self.last_action_offset = 12
+            self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
+            self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
+            self.goal = np.zeros(3, dtype=np.float32)
         else:
             ValueError("must choose valid obs type")
         
@@ -203,6 +216,8 @@ class Hound_RLHL_Control:
             self.obtain_blind_state(odom)
         elif self.obs_type == "elevation":
             self.obtain_elevation_state(odom)
+        elif self.obs_type == "goal_based_elevation":
+            self.obtain_goal_based_elevation_state(odom)
         else:
             ValueError("must choose valid obs type")
 
@@ -242,6 +257,22 @@ class Hound_RLHL_Control:
         self.state[8] = self.imu.angular_velocity.z
         #TODO: in the observation term I also have the last action term, how do I include it here?  
         self.state[11:687] = self.get_local_elevation_map(x, y, yaw, width=26) # this should be an array of shape (N,) where N = size*size, here it will be 400(taking 20 as the size)
+
+    def obtain_goal_based_elevation_state(self, odom):
+        x=self.pose[0].numpy()
+        y=self.pose[1].numpy()
+        yaw = self.pose[5].numpy()
+        self.state[:3] = self.goal - self.pose[:3].numpy()
+        self.state[3:6] = self.pose[3:6].numpy() #obtain the orientation
+        self.state[6] = odom.twist.twist.linear.x
+        self.state[7] = odom.twist.twist.linear.y
+        self.state[8] = odom.twist.twist.linear.z 
+        self.state[9] = self.imu.angular_velocity.x
+        self.state[10] = self.imu.angular_velocity.y
+        self.state[11] = self.imu.angular_velocity.z
+        #TODO: in the observation term I also have the last action term, how do I include it here?  
+        self.state[14:690] = self.get_local_elevation_map(x, y, yaw, width=26)
+
 
     def odom_callback(self, odom):
         if self.imu is None:

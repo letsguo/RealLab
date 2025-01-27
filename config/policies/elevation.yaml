@@ -1,6 +1,6 @@
 throttle_to_wheelspeed: 1.0
-model_path: "1-26-25/model_100.pt"
+model_path: "1-26-25/model_300.pt"
 steering_max: 0.488
 rate: 20
-obs_type: "elevation"
+obs_type: "goal_based_elevation"
 hidden_shape: [128, 128]
