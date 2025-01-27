@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 MAP_RESOLUTION = 0.1
 
@@ -81,3 +82,56 @@ def crop_heightmap(heightmap, x, y, yaw, width=20):
             if 0 <= i_h < rows and 0 <= j_h < cols:
                 cropped[i_c, j_c] = heightmap[i_h, j_h]
     return cropped
+
+def generate_heightmap(obstacles, heightmap, block, ramp):
+    def overlay_heightmaps(large, small, i, j):
+        # Create a deep copy of the large heightmap to avoid modifying the original
+        new_large = np.copy(large)
+        
+        # Get dimensions of the small heightmap
+        S_rows = len(small)
+        if S_rows == 0:
+            return new_large  # Nothing to overlay
+        S_cols = len(small[0])
+        if S_cols == 0:
+            return new_large  # Nothing to overlay
+        
+        # Get dimensions of the large heightmap
+        L_rows = len(new_large)
+        if L_rows == 0:
+            return new_large  # No large map to overlay onto
+        L_cols = len(new_large[0]) if L_rows > 0 else 0
+        
+        # Calculate the center position of the small heightmap
+        S_center_row = (S_rows - 1) // 2
+        S_center_col = (S_cols - 1) // 2
+        
+        # Iterate over each element in the small heightmap
+        for s_r in range(S_rows):
+            for s_c in range(S_cols):
+                # Calculate corresponding position in the large heightmap
+                l_r = i - S_center_row + s_r
+                l_c = j - S_center_col + s_c
+                
+                # Check if the position is within the bounds of the large heightmap
+                if 0 <= l_r < L_rows and 0 <= l_c < L_cols:
+                    new_large[l_r][l_c] += small[s_r][s_c]
+        
+        return new_large
+    
+    def xy_to_ij(x, y, heightmap):
+        rows, cols = heightmap.shape
+        y = y / MAP_RESOLUTION + rows // 2
+        x = x / MAP_RESOLUTION + cols // 2
+        return int(y), int(x)
+    
+    for obstacle in obstacles:
+        x_obs = obstacle['position'][0]
+        y_obs = obstacle['position'][1]
+        yaw = -obstacle['orientation']
+        obstacle = block if obstacle['type'] == 'block' else ramp
+        obstacle = rotate_matrix(obstacle, yaw)
+        i, j = xy_to_ij(x_obs, y_obs, heightmap)
+        heightmap = overlay_heightmaps(heightmap, obstacle, i, j)
+        
+    return heightmap

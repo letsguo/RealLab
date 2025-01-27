@@ -46,7 +46,12 @@ class Hound_RLHL_Control:
 
         if self.obs_type == "relative":
             self.state = np.zeros(12, dtype=np.float32)
-            self.model = RLModel(model_path, acargs=(12,12,2))
+            self.model = RLModel(model_path, 
+                                 acargs=(12,12,2),
+                                 ackwargs={
+                                   "actor_hidden_dims": hidden_shape,
+                                   "critic_hidden_dims": hidden_shape
+                                })
             self.include_last_action = False
         elif self.obs_type == "blind":
             self.state = np.zeros(14, dtype=np.float32)
@@ -57,11 +62,19 @@ class Hound_RLHL_Control:
                                    "critic_hidden_dims": hidden_shape
                                 })
             self.include_last_action = True
-            self.cv_bridge = CvBridge()
-            self.image_shape = (40, 80)
-            self.resize_shape = (80, 60)
-            self.image = np.zeros(self.image_shape[0]*self.image_shape[1])
-            self.last_action_offset = 40 * 80 + 6
+            self.last_action_offset = 12
+        elif self.obs_type == "elevation":
+            self.state = np.zeros(687, dtype=np.float32)
+            self.model = RLModel(model_path,
+                                acargs=(687,687,2),
+                                ackwargs={
+                                   "actor_hidden_dims": hidden_shape,
+                                   "critic_hidden_dims": hidden_shape
+                                })
+            self.include_last_action = True
+            self.last_action_offset = 9
+            self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
+            self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
         else:
             ValueError("must choose valid obs type")
         
@@ -190,8 +203,6 @@ class Hound_RLHL_Control:
             self.obtain_blind_state(odom)
         elif self.obs_type == "elevation":
             self.obtain_elevation_state(odom)
-        elif self.obs_type == "rgb":
-            self.obtain_rgb_state(odom)
         else:
             ValueError("must choose valid obs type")
 
@@ -232,16 +243,6 @@ class Hound_RLHL_Control:
         #TODO: in the observation term I also have the last action term, how do I include it here?  
         self.state[11:687] = self.get_local_elevation_map(x, y, yaw, width=26) # this should be an array of shape (N,) where N = size*size, here it will be 400(taking 20 as the size)
 
-    def obtain_rgb_state(self, odom):
-        image_offset = self.image_shape[0] * self.image_shape[1]
-        self.state[:image_offset] = self.image
-        self.state[image_offset] = odom.twist.twist.linear.x
-        self.state[image_offset + 1] = odom.twist.twist.linear.y
-        self.state[image_offset + 2] = odom.twist.twist.linear.z 
-        self.state[image_offset + 3] = self.imu.angular_velocity.x
-        self.state[image_offset + 4] = self.imu.angular_velocity.y
-        self.state[image_offset + 5] = self.imu.angular_velocity.z
-
     def odom_callback(self, odom):
         if self.imu is None:
             return
@@ -252,6 +253,9 @@ class Hound_RLHL_Control:
 
     def imu_callback(self, imu):
         self.imu = imu
+
+    def heightmap_callback(self, msg):
+        self.heightmap = np.array(msg.data).reshape(26,26)
 
     def pos_angle(self, pos):
         waypoints = Waypoints().waypoints
