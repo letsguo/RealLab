@@ -8,6 +8,7 @@
         <include file="$(find mushr_mocap)/launch/object_publisher.launch">
             <arg name="asset_name" value="$(arg robot_name)" />
         </include>
+        <node pkg="hound_core" type="heightmap_publisher.py" name="heightmap" output="screen"/>
     </group>
     <!-- otherwise just pulish car odom -->
     <group unless="$(eval arg('policy') == 'elevation')">

@@ -3,6 +3,7 @@ import rospy
 import yaml
 import numpy as np
 from geometry_msgs.msg import PoseStamped
+from mavros_msgs.msg import RCIn
 from std_msgs.msg import Float32MultiArray
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from utils.generate_elevation_map import generate_heightmap  # Import your actual function
@@ -20,6 +21,9 @@ class BlockHeightmapGenerator:
         self.obstacles = {}
 
         # Setup tracked objects
+        self.rc_sub = rospy.Subscriber('/mavros/rc/in', RCIn, self.rcin_callback)
+        self.car_off = True
+
         for obj in tracked_objects:
             # Create publisher for corrected pose
             input_topic = f"/mocap/{obj}/pose"
@@ -35,18 +39,24 @@ class BlockHeightmapGenerator:
         self.map_pub = rospy.Publisher('heightmap', Float32MultiArray, queue_size=1)
 
         obstacle_list = [b for b in self.obstacles.values() if b is not None]
-        self.heightmap_raw = np.load('root/catkin_ws/src/hound_core/config/elevation/heightmap.npy')
-        self.block = np.load('root/catkin_ws/src/hound_core/config/elevation/block.npy')
-        self.ramp = np.load('root/catkin_ws/src/hound_core/config/elevation/ramp.npy') 
+        self.heightmap_raw = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
+        self.block = np.load('/root/catkin_ws/src/hound_core/config/elevation/block.npy')
+        self.ramp = np.load('/root/catkin_ws/src/hound_core/config/elevation/ramp.npy') 
 
-        self.heightmap = generate_heightmap(obstacle_list, self.heightmap_raw)
+        self.heightmap = generate_heightmap(obstacle_list, self.heightmap_raw, self.block, self.ramp)
+
+        self.main_loop()
 
     def main_loop(self):
         """Main loop to update heightmap"""
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
-            self.update_heightmap()
+            if self.car_off:
+                self.update_heightmap()
             rate.sleep()
+
+    def rcin_callback(self, data):
+        self.car_off = data.channels[2] < 1100
 
     def pose_callback(self, msg, obj_name):
         """Process raw pose data, apply offsets, and store block information"""
@@ -78,14 +88,14 @@ class BlockHeightmapGenerator:
                 'orientation': yaw
             }
 
-    def update_heightmap(self, event):
+    def update_heightmap(self):
         """Generate heightmap from block positions"""
         # Prepare block data
         obstacle_list = [b for b in self.obstacles.values() if b is not None]
         
         self.heightmap = generate_heightmap(obstacle_list, self.heightmap_raw, self.block, self.ramp)
         msg = Float32MultiArray()
-        msg.data = self.heightmap.flatten().to_list()
+        msg.data = self.heightmap.flatten().tolist()
         self.map_pub.publish(msg)
 
 if __name__ == '__main__':

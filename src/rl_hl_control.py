@@ -255,7 +255,7 @@ class Hound_RLHL_Control:
         self.imu = imu
 
     def heightmap_callback(self, msg):
-        self.heightmap = np.array(msg.data).reshape(26,26)
+        self.heightmap = np.array(msg.data).reshape(self.heightmap.shape)
 
     def pos_angle(self, pos):
         waypoints = Waypoints().waypoints

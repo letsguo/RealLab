@@ -128,7 +128,7 @@ def generate_heightmap(obstacles, heightmap, block, ramp):
     for obstacle in obstacles:
         x_obs = obstacle['position'][0]
         y_obs = obstacle['position'][1]
-        yaw = -obstacle['orientation']
+        yaw = obstacle['orientation']
         obstacle = block if obstacle['type'] == 'block' else ramp
         obstacle = rotate_matrix(obstacle, yaw)
         i, j = xy_to_ij(x_obs, y_obs, heightmap)
