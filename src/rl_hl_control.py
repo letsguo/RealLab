@@ -36,6 +36,7 @@ class Hound_RLHL_Control:
         self.obs_type = config_data["obs_type"]
         hidden_shape = config_data["hidden_shape"]
         model_path = config_data["model_path"]
+        model_type = config_data["model_type"]
 
         ## state variables
         self.state_init = False
@@ -49,6 +50,7 @@ class Hound_RLHL_Control:
         if self.obs_type == "relative":
             self.state = np.zeros(12, dtype=np.float32)
             self.model = RLModel(model_path, 
+                                 model_type=model_type,
                                  acargs=(12,12,2),
                                  ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -58,6 +60,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == "blind":
             self.state = np.zeros(14, dtype=np.float32)
             self.model = RLModel(model_path,
+                                 model_type=model_type,
                                 acargs=(14,14,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -68,6 +71,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == "elevation":
             self.state = np.zeros(687, dtype=np.float32)
             self.model = RLModel(model_path,
+                                model_type=model_type,
                                 acargs=(687,687,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -80,6 +84,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == "goal_based_elevation":
             self.state = np.zeros(690, dtype=np.float32)
             self.model = RLModel(model_path,
+                                model_type=model_type,
                                 acargs=(690,690,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -93,6 +98,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == 'rgb':
             self.state = np.zeros(40 * 80 + 8, dtype=np.float32)
             self.model = RLModel(model_path, 
+                                model_type=model_type,
                                 acargs = (40 * 80 + 8, 40 * 80 + 8, 2),
                                 ackwargs={
                                       "actor_hidden_dims": hidden_shape,
@@ -105,6 +111,7 @@ class Hound_RLHL_Control:
             self.image = np.zeros(self.image_shape[0]*self.image_shape[1])
             self.last_action_offset = 40 * 80 + 6
             self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, callback_args={"resize_shape": self.resize_shape})
+            self.threshold = config_data["threshold"]
         else:
             ValueError("must choose valid obs type")
 
@@ -327,8 +334,10 @@ class Hound_RLHL_Control:
         normalized_image = (gray_image - 0.5) / 0.5
 
         flattened_image = normalized_image.reshape(-1)
-        self.image = flattened_image 
-
+        if self.threshold > 0:
+            self.image = flattened_image > self.threshold
+        else:
+            self.image = flattened_image
 
     def odom_callback(self, odom):
         if self.imu is None:

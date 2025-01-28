@@ -1,0 +1,8 @@
+throttle_to_wheelspeed: 1.0
+model_path: "1-26-25/model_300.pt"
+model_type: "mlp"
+steering_max: 0.488
+rate: 20
+obs_type: "goal_based_elevation"
+hidden_shape: [128, 128]
+goal: [-1.0, -2.0, 0.0]

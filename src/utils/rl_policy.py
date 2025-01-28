@@ -1,12 +1,18 @@
 import torch 
 from utils.actor_critic import ActorCritic
+from utils.cnn_actor_critic import CNNActorCritic
 import numpy
 
 class RLModel:
-    def __init__(self, name, acargs=(12,12,2), ackwargs = {'actor_hidden_dims': [128,128], 'critic_hidden_dims': [128,128]}):
+    def __init__(self, name, type="mlp", acargs=(12,12,2), ackwargs = {'actor_hidden_dims': [128,128], 'critic_hidden_dims': [128,128]}):
         path = f"/root/catkin_ws/src/hound_core/src/models/{name}"
         loaded_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.Model = ActorCritic(*acargs, **ackwargs)
+        if type == "cnn":
+            self.Model = CNNActorCritic(*acargs, **ackwargs)
+        elif type == "mlp":
+            self.Model = ActorCritic(*acargs, **ackwargs)
+        else:
+            raise ValueError("Invalid model type")
         self.Model.load_state_dict(loaded_dict["model_state_dict"])
     def inference(self, state):
         state = torch.Tensor(state)
