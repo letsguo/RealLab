@@ -44,6 +44,7 @@ class Hound_RLHL_Control:
         self.pose = torch.zeros(6)
         self.twists = torch.zeros(6)
         self.start_action = False
+        self.pad_latch = True
 
         if self.obs_type == "relative":
             self.state = np.zeros(12, dtype=np.float32)
@@ -176,7 +177,13 @@ class Hound_RLHL_Control:
                     data[12:14] = ctrl
                     msg.data = data.tolist()
                     self.value_pub.publish(msg)
-                
+                    self.pad_latch = True
+                elif self.collect_data and self.pad_latch:
+                    msg = Float32MultiArray()
+                    msg.data = np.zeros(15, dtype=np.float32).tolist()
+                    self.value_pub.publish(msg)
+                    self.pad_latch = False
+                    
                 self.send_ctrl(ctrl)
                 self.odom_update = False
             rate.sleep()
