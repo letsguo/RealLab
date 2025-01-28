@@ -14,7 +14,7 @@ class BlockHeightmapGenerator:
         
         # Load parameters
         tracked_objects = rospy.get_param('~tracked_objects', 
-                                        ['block1', 'block2', 'block3', 'block4', 'ramp1'])
+                                        ['block1', 'block2', 'block3', 'block4', 'ramp1', 'ramp2'])
         self.rate = 1  # Processing rate in Hz
         
         # Initialize data stores
