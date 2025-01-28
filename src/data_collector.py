@@ -23,11 +23,11 @@ class ArrayCollectorNode:
 
     def callback(self, msg):
         # Validate and extract first 14 elements
-        if len(msg.data) < 4:
+        if len(msg.data) < 15:
             rospy.logerr("Received array with less than 14 elements!")
             return
             
-        data = msg.data[:4]
+        data = msg.data[:15]
         
         try:
             # Convert to numpy array and store in list

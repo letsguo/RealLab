@@ -170,7 +170,7 @@ class Hound_RLHL_Control:
                 if self.collect_data and self.start_action:
                     msg = Float32MultiArray()
                     data = np.zeros(15, dtype=np.float32)
-                    data[14] = self.model.get_value(self.state).tolist()
+                    data[14] = self.model.get_value(self.state).tolist()[0]
                     data[0:6] = self.pose.numpy()
                     data[6:12] = self.twists.numpy()
                     data[12:14] = ctrl
