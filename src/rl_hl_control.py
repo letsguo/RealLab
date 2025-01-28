@@ -90,6 +90,21 @@ class Hound_RLHL_Control:
             self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
             self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
             self.goal = np.array(config_data["goal"], dtype=np.float32)
+        elif self.obs_type == 'rgb':
+            self.state = np.zeros(40 * 80 + 8, dtype=np.float32)
+            self.model = RLModel(model_path, 
+                                acargs = (40 * 80 + 8, 40 * 80 + 8, 2),
+                                ackwargs={
+                                      "actor_hidden_dims": hidden_shape,
+                                      "critic_hidden_dims": hidden_shape
+                                })
+            self.include_last_action = True
+            self.cv_bridge = CvBridge()
+            self.image_shape = (40, 80)
+            self.resize_shape = (80, 60)
+            self.image = np.zeros(self.image_shape[0]*self.image_shape[1])
+            self.last_action_offset = 40 * 80 + 6
+            self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, callback_args={"resize_shape": self.resize_shape})
         else:
             ValueError("must choose valid obs type")
 
@@ -250,6 +265,8 @@ class Hound_RLHL_Control:
             self.obtain_elevation_state(odom)
         elif self.obs_type == "goal_based_elevation":
             self.obtain_goal_based_elevation_state(odom)
+        elif self.obs_type == "rgb":
+            self.obtain_rgb_state(odom)
         else:
             ValueError("must choose valid obs type")
 
@@ -294,6 +311,38 @@ class Hound_RLHL_Control:
         self.state[11] = self.imu.angular_velocity.z
         #TODO: in the observation term I also have the last action term, how do I include it here?  
         self.state[14:690] = self.get_local_elevation_map(x, y, yaw, width=26)
+
+    def obtain_rgb_state(self, odom):
+        image_offset = self.image_shape[0] * self.image_shape[1]
+        self.state[:image_offset] = self.image
+        self.state[image_offset] = odom.twist.twist.linear.x
+        self.state[image_offset + 1] = odom.twist.twist.linear.y
+        self.state[image_offset + 2] = odom.twist.twist.linear.z 
+        self.state[image_offset + 3] = self.imu.angular_velocity.x
+        self.state[image_offset + 4] = self.imu.angular_velocity.y
+        self.state[image_offset + 5] = self.imu.angular_velocity.z
+
+    def image_callback(self, msg, callback_args):
+        try:
+            image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        except CvBridgeError as e:
+            raise RuntimeError(e)
+        # h x w x c
+        resize_shape = callback_args["resize_shape"]
+        resized_image = cv2.resize(image, resize_shape)
+        H = resized_image.shape[0]
+
+        # remove upper 1/3
+        resized_image = resized_image[H//3:, ...]
+
+        # convert to grayscale
+        gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY) / 255.
+
+        # make it unit gaussian assuming mean std of 0.5 0.5
+        normalized_image = (gray_image - 0.5) / 0.5
+
+        flattened_image = normalized_image.reshape(-1)
+        self.image = flattened_image
 
 
     def odom_callback(self, odom):
