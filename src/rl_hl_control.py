@@ -42,6 +42,7 @@ class Hound_RLHL_Control:
         self.imu = None
         self.odom_update = False
         self.pose = torch.zeros(6)
+        self.twists = torch.zeros(6)
         self.start_action = False
 
         if self.obs_type == "relative":
@@ -168,11 +169,12 @@ class Hound_RLHL_Control:
                 self.state_pub.publish(msg)
                 if self.collect_data and self.start_action:
                     msg = Float32MultiArray()
-                    data = self.model.get_value(self.state).tolist()
-                    data.append(self.pose[0])
-                    data.append(self.pose[1])
-                    data.append(self.pose[5])
-                    msg.data = data
+                    data = np.zeros(15, dtype=np.float32)
+                    data[14] = self.model.get_value(self.state).tolist()
+                    data[0:6] = self.pose.numpy()
+                    data[6:12] = self.twists.numpy()
+                    data[12:14] = ctrl
+                    msg.data = data.tolist()
                     self.value_pub.publish(msg)
                 
                 self.send_ctrl(ctrl)
@@ -226,6 +228,13 @@ class Hound_RLHL_Control:
 
         self.pose = new_pose
 
+        self.twists[0] = odom.twist.twist.linear.x
+        self.twists[1] = odom.twist.twist.linear.y
+        self.twists[2] = odom.twist.twist.linear.z
+        self.twists[3] = self.imu.angular_velocity.x
+        self.twists[4] = self.imu.angular_velocity.y
+        self.twists[5] = self.imu.angular_velocity.z
+
         if self.obs_type == "relative":
             self.obtain_relative_state(odom)
         elif self.obs_type == "blind":
@@ -239,21 +248,11 @@ class Hound_RLHL_Control:
 
     def obtain_blind_state(self, odom):
         self.state[:6] = self.pose.numpy()
-        self.state[6] = odom.twist.twist.linear.x
-        self.state[7] = odom.twist.twist.linear.y
-        self.state[8] = odom.twist.twist.linear.z
-        self.state[9] = self.imu.angular_velocity.x
-        self.state[10] = self.imu.angular_velocity.y
-        self.state[11] = self.imu.angular_velocity.z
+        self.state[6:12] = self.twists.numpy()
 
     def obtain_relative_state(self, odom):
         self.state[:6] = self.pos_angle(self.pose).numpy()
-        self.state[6] = odom.twist.twist.linear.x
-        self.state[7] = odom.twist.twist.linear.y
-        self.state[8] = odom.twist.twist.linear.z
-        self.state[9] = self.imu.angular_velocity.x
-        self.state[10] = self.imu.angular_velocity.y
-        self.state[11] = self.imu.angular_velocity.z
+        self.state[6:12] = self.twists.numpy()
 
     def get_local_elevation_map(self, x, y, yaw, width=20):
         elevation_map = crop_heightmap(self.heightmap, x, y, yaw, width=width)
