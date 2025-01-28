@@ -14,3 +14,8 @@ class RLModel:
             actions = self.Model.act_inference(state).numpy().astype(numpy.float32)
             clipped_actions = numpy.clip(actions, -1, 1)
             return clipped_actions
+        
+    def get_value(self, state):
+        state = torch.Tensor(state)
+        with torch.no_grad():
+            return self.Model.evaluate(state).numpy().astype(numpy.float32)

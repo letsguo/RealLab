@@ -1,5 +1,6 @@
 <launch>
     <arg name="visualize" default="false" />
+    <arg name="data" default="false" />
     <arg name="robot_name" default="hound1" />
     <arg name="policy" default="drift" />
 
@@ -52,9 +53,13 @@
 
     <node pkg="hound_core" type="rl_hl_control.py" name="high_level_controller" output="screen">
         <param name="policy" value="$(arg policy)" />
+        <param name="data_collection" value="$(arg data)" />
     </node>
    
     <!-- <node pkg="hound_core" type="hound_hl_control.py" name="high_level_controller" output="screen"/> -->
+    <group if ="$(arg data)">
+        <node pkg="hound_core" type="data_collector.py" name="data_collector" output="screen"/>
+    </group>
 
     <!-- Group of nodes launched only if visualize is true -->
     <group if="$(arg visualize)">

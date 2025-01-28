@@ -26,7 +26,7 @@ from utils.generate_elevation_map import crop_heightmap
 
 
 class Hound_RLHL_Control:
-    def __init__(self, policy):
+    def __init__(self, policy, data_collection):
         with open(f"/root/catkin_ws/src/hound_core/config/policies/{policy}.yaml") as f:
             config_data = yaml.safe_load(f)
 
@@ -90,7 +90,12 @@ class Hound_RLHL_Control:
             self.goal = np.array(config_data["goal"], dtype=np.float32)
         else:
             ValueError("must choose valid obs type")
-        
+
+        self.collect_data = data_collection
+
+        if data_collection:
+            self.value_pub = rospy.Publisher("value", Float32MultiArray, queue_size=1)
+
         waypoints = Waypoints()
         waypoints.generate_waypoints()
         print("\n1\n")
@@ -158,12 +163,20 @@ class Hound_RLHL_Control:
         while not rospy.is_shutdown():
             if (self.state_init and self.odom_update):
                 ctrl = self.model.inference(self.state)
-                self.send_ctrl(ctrl)
-                self.odom_update = False
-
                 msg = Float32MultiArray()
                 msg.data = self.state.tolist()
                 self.state_pub.publish(msg)
+                if self.collect_data:
+                    msg = Float32MultiArray()
+                    data = self.model.get_value(self.state).tolist()
+                    data.append(self.pose[0])
+                    data.append(self.pose[1])
+                    data.append(self.pose[5])
+                    msg.data = data
+                    self.value_pub.publish(msg)
+                
+                self.send_ctrl(ctrl)
+                self.odom_update = False
             rate.sleep()
 
     def send_ctrl(self, ctrl):
@@ -306,5 +319,7 @@ class Hound_RLHL_Control:
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
     policy = rospy.get_param("~policy")
-    planner = Hound_RLHL_Control(policy)
+    data_collection = rospy.get_param("~data_collection")
+    print(data_collection)
+    planner = Hound_RLHL_Control(policy, data_collection)
     rospy.spin()
