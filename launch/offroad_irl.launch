@@ -1,7 +1,7 @@
 <launch>
     <arg name="visualize" default="false" />
     <arg name="data" default="false" />
-    <arg name="robot_name" default="hound1" />
+    <arg name="robot_name" default="hound_vio" />
     <arg name="policy" default="drift" />
 
     <!-- for elevation launch the object publisher to keep track of object poses -->
@@ -18,13 +18,13 @@
         </include>
     </group>
 
-    <!-- launching vio if the robot is hound1, otherwise launch depth camera-->
-    <group if="$(eval arg('robot_name') == 'hound1')">
+    <!-- launching vio if the robot is hound_vio, otherwise launch depth camera-->
+    <group if="$(eval arg('robot_name') == 'hound_vio')">
         <include file="$(find realsense2_camera)/launch/rs_t265.launch"/>
         <node pkg="hound_core" type="odom_publisher.py" name="odometry_processor" output="screen"/>
         <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core offroad_apm.launch" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
     </group>
-    <group unless="$(eval arg('robot_name') == 'hound1')">
+    <group unless="$(eval arg('robot_name') == 'hound_vio')">
         <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="5 hound_core realsense_d455_HOUND.launch" name="camera_timed" output="screen"/>
         <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core offroad_apm.launch fcu_url:=/dev/ttyACM1:921600" name="apm_timed" 
                 output="screen" launch-prefix="nice -n -1"/>
