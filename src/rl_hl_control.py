@@ -166,7 +166,7 @@ class Hound_RLHL_Control:
                 msg = Float32MultiArray()
                 msg.data = self.state.tolist()
                 self.state_pub.publish(msg)
-                if self.collect_data:
+                if self.collect_data and self.start_action:
                     msg = Float32MultiArray()
                     data = self.model.get_value(self.state).tolist()
                     data.append(self.pose[0])
