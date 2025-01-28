@@ -288,12 +288,7 @@ class Hound_RLHL_Control:
         y=self.pose[1].numpy()
         yaw = self.pose[5].numpy()
         self.state[:3] = self.pose[3:6].numpy() #obtain the orientation
-        self.state[3] = odom.twist.twist.linear.x
-        self.state[4] = odom.twist.twist.linear.y
-        self.state[5] = odom.twist.twist.linear.z 
-        self.state[6] = self.imu.angular_velocity.x
-        self.state[7] = self.imu.angular_velocity.y
-        self.state[8] = self.imu.angular_velocity.z
+        self.state[3:9] = self.twists.numpy()
         #TODO: in the observation term I also have the last action term, how do I include it here?  
         self.state[11:687] = self.get_local_elevation_map(x, y, yaw, width=26) # this should be an array of shape (N,) where N = size*size, here it will be 400(taking 20 as the size)
 
@@ -303,24 +298,14 @@ class Hound_RLHL_Control:
         yaw = self.pose[5].numpy()
         self.state[:3] = self.goal - self.pose[:3].numpy()
         self.state[3:6] = self.pose[3:6].numpy() #obtain the orientation
-        self.state[6] = odom.twist.twist.linear.x
-        self.state[7] = odom.twist.twist.linear.y
-        self.state[8] = odom.twist.twist.linear.z 
-        self.state[9] = self.imu.angular_velocity.x
-        self.state[10] = self.imu.angular_velocity.y
-        self.state[11] = self.imu.angular_velocity.z
+        self.state[6:12] = self.twists.numpy()
         #TODO: in the observation term I also have the last action term, how do I include it here?  
         self.state[14:690] = self.get_local_elevation_map(x, y, yaw, width=26)
 
     def obtain_rgb_state(self, odom):
         image_offset = self.image_shape[0] * self.image_shape[1]
         self.state[:image_offset] = self.image
-        self.state[image_offset] = odom.twist.twist.linear.x
-        self.state[image_offset + 1] = odom.twist.twist.linear.y
-        self.state[image_offset + 2] = odom.twist.twist.linear.z 
-        self.state[image_offset + 3] = self.imu.angular_velocity.x
-        self.state[image_offset + 4] = self.imu.angular_velocity.y
-        self.state[image_offset + 5] = self.imu.angular_velocity.z
+        self.state[image_offset:] = self.twists.numpy()
 
     def image_callback(self, msg, callback_args):
         try:
@@ -342,7 +327,7 @@ class Hound_RLHL_Control:
         normalized_image = (gray_image - 0.5) / 0.5
 
         flattened_image = normalized_image.reshape(-1)
-        self.image = flattened_image
+        self.image = flattened_image 
 
 
     def odom_callback(self, odom):
@@ -375,6 +360,5 @@ if __name__ == "__main__":
     rospy.init_node("hl_controller")
     policy = rospy.get_param("~policy")
     data_collection = rospy.get_param("~data_collection")
-    print(data_collection)
     planner = Hound_RLHL_Control(policy, data_collection)
     rospy.spin()
