@@ -32,9 +32,7 @@ class ArrayCollectorNode:
         try:
             # Convert to numpy array and store in list
             array = np.array(data, dtype=np.float32)
-            self.array_list.append(array)
-            rospy.loginfo(f"Collected array ({len(self.array_list)} total)")
-            
+            self.array_list.append(array)            
         except Exception as e:
             rospy.logerr(f"Error processing data: {str(e)}")
 
@@ -49,7 +47,7 @@ class ArrayCollectorNode:
             
             # Generate timestamped filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"/home/sidhraja/combined_arrays_{timestamp}.npy"
+            filename = f"/root/catkin_ws/src/hound_core/data/combined_arrays_{timestamp}.npy"
             
             # Save the combined array
             np.save(filename, combined_array)
