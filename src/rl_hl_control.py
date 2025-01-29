@@ -21,7 +21,6 @@ import torch
 from Bezier import *
 from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
-from policy_factory import load_policy
 from utils.generate_elevation_map import crop_heightmap
 
 
@@ -50,7 +49,7 @@ class Hound_RLHL_Control:
         if self.obs_type == "relative":
             self.state = np.zeros(12, dtype=np.float32)
             self.model = RLModel(model_path, 
-                                 model_type=model_type,
+                                 type=model_type,
                                  acargs=(12,12,2),
                                  ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -60,7 +59,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == "blind":
             self.state = np.zeros(14, dtype=np.float32)
             self.model = RLModel(model_path,
-                                 model_type=model_type,
+                                type=model_type,
                                 acargs=(14,14,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -71,7 +70,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == "elevation":
             self.state = np.zeros(687, dtype=np.float32)
             self.model = RLModel(model_path,
-                                model_type=model_type,
+                                type=model_type,
                                 acargs=(687,687,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -84,7 +83,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == "goal_based_elevation":
             self.state = np.zeros(690, dtype=np.float32)
             self.model = RLModel(model_path,
-                                model_type=model_type,
+                                type=model_type,
                                 acargs=(690,690,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,
@@ -98,7 +97,7 @@ class Hound_RLHL_Control:
         elif self.obs_type == 'rgb':
             self.state = np.zeros(40 * 80 + 8, dtype=np.float32)
             self.model = RLModel(model_path, 
-                                model_type=model_type,
+                                type=model_type,
                                 acargs = (40 * 80 + 8, 40 * 80 + 8, 2),
                                 ackwargs={
                                       "actor_hidden_dims": hidden_shape,
@@ -312,7 +311,7 @@ class Hound_RLHL_Control:
     def obtain_rgb_state(self, odom):
         image_offset = self.image_shape[0] * self.image_shape[1]
         self.state[:image_offset] = self.image
-        self.state[image_offset:] = self.twists.numpy()
+        self.state[image_offset:image_offset+6] = self.twists.numpy()
 
     def image_callback(self, msg, callback_args):
         try:
