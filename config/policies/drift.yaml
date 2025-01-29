@@ -4,4 +4,4 @@ model_type: "mlp"
 steering_max: 0.488
 rate: 50
 obs_type: "blind"
-hidden_shape: [128, 128]
+hidden_shape: [64, 64]
