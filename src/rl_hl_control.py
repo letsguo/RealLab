@@ -5,14 +5,14 @@ import numpy as np
 # from hound_mppi import mppi
 from nav_msgs.msg import Odometry, Path as navPath
 from std_msgs.msg import Float32MultiArray
-from sensor_msgs.msg import Imu, Image
+from sensor_msgs.msg import Imu, Image, Joy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
-from mavros_msgs.msg import RCIn
 from utils.rl_policy import RLModel
 from utils.waypoints import Waypoints
 from visualization_msgs.msg import Marker, MarkerArray
 from ackermann_msgs.msg import AckermannDriveStamped
 from tf.transformations import euler_from_quaternion
+
 import os
 from pathlib import Path
 import yaml
@@ -127,9 +127,9 @@ class Hound_RLHL_Control:
             "/mavros/local_position/odom", Odometry, self.odom_callback
         )
 
-        self.rc_sub = rospy.Subscriber('/mavros/rc/in', RCIn, self.rcin_callback)
+        self.rc_sub = rospy.Subscriber('/car/teleop/joy', Joy, self.rcin_callback)
 
-        self.imu_sub = rospy.Subscriber("/mavros/imu/data", Imu, self.imu_callback)
+        self.imu_sub = rospy.Subscriber("/camera/gyro/sample", Imu, self.imu_callback)
         # self.grid_map_sub = rospy.Subscriber(
         #     "/grid_map_occlusion_inpainting/all_grid_map",
         #     GridMap,
@@ -152,7 +152,7 @@ class Hound_RLHL_Control:
 
         ## set up publishers:
         self.control_pub = rospy.Publisher(
-            "low_level_controller/hound/control", AckermannDriveStamped, queue_size=1
+            "/car/mux/ackermann_cmd_mux/input/navigation", AckermannDriveStamped, queue_size=1
         )
         self.state_pub = rospy.Publisher(
             "hl_controller/state", Float32MultiArray, queue_size=1
@@ -175,7 +175,7 @@ class Hound_RLHL_Control:
 
     def rcin_callback(self, data):
         try:
-            self.start_action = data.channels[2] > 1300
+            self.start_action = data.buttons[5] == 1
         except Exception as e:
             pass
 
@@ -241,17 +241,8 @@ class Hound_RLHL_Control:
         new_pose[1] = odom.pose.pose.position.y
         new_pose[2] = odom.pose.pose.position.z
 
-        #make sure angles are between 0 and 2pi
-        imu_quaternion = (
-            self.imu.orientation.x,
-            self.imu.orientation.y,
-            self.imu.orientation.z,
-            self.imu.orientation.w,
-        )
-        rpy_imu = euler_from_quaternion(imu_quaternion)
-
-        new_pose[3] = (rpy_imu[0] + 2*np.pi) % (2*np.pi)
-        new_pose[4] = (rpy_imu[1] + 2*np.pi) % (2*np.pi)
+        new_pose[3] = (rpy[0] + 2*np.pi) % (2*np.pi)
+        new_pose[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
         new_pose[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
 
         self.pose = new_pose
@@ -259,9 +250,10 @@ class Hound_RLHL_Control:
         self.twists[0] = odom.twist.twist.linear.x
         self.twists[1] = odom.twist.twist.linear.y
         self.twists[2] = odom.twist.twist.linear.z
-        self.twists[3] = self.imu.angular_velocity.x
-        self.twists[4] = self.imu.angular_velocity.y
-        self.twists[5] = self.imu.angular_velocity.z
+        # lazy fix for wierd camera reference frame
+        self.twists[3] = self.imu.angular_velocity.z
+        self.twists[4] = - self.imu.angular_velocity.x
+        self.twists[5] = - self.imu.angular_velocity.y
 
         if self.obs_type == "relative":
             self.obtain_relative_state(odom)

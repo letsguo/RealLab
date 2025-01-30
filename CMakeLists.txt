@@ -13,7 +13,6 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   sensor_msgs
   std_msgs
-  mavros_msgs
   vesc_msgs
   laser_geometry
 )
@@ -144,9 +143,6 @@ ${OpenCV_INCLUDE_DIRS}
 # add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 # add_executable(hound_core_node src/hound_core_node.cpp)
 # target_link_libraries(hound_core_node ${catkin_LIBRARIES} ${OpenCV_LIBS})
-
-add_executable(hound_ll_control src/hound_ll_control.cpp)
-target_link_libraries(hound_ll_control ${catkin_LIBRARIES})
 
 # add_executable(laser_pcl_converter src/laser_pcl_converter.cpp)
 # target_link_libraries(laser_pcl_converter ${catkin_LIBRARIES})

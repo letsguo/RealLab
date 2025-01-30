@@ -21,7 +21,7 @@ class BlockHeightmapGenerator:
         self.obstacles = {}
 
         # Setup tracked objects
-        self.rc_sub = rospy.Subscriber('/mavros/rc/in', RCIn, self.rcin_callback)
+        self.rc_sub = rospy.Subscriber('/car/teleop/joy', RCIn, self.rcin_callback)
         self.car_off = True
 
         for obj in tracked_objects:
@@ -57,7 +57,7 @@ class BlockHeightmapGenerator:
 
     def rcin_callback(self, data):
         try:
-            self.car_off = data.channels[2] < 1100        
+            self.car_off = data.buttons[5] == 0        
         except Exception as e:
             pass
 
