@@ -47,7 +47,7 @@ class ArrayCollectorNode:
             
             # Generate timestamped filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"/root/catkin_ws/src/hound_core/data/combined_arrays_{timestamp}.npy"
+            filename = f"/root/catkin_ws/src/hound_core/data/rgb{timestamp}.npy"
             
             # Save the combined array
             np.save(filename, combined_array)

@@ -2,8 +2,8 @@
 import rospy
 import yaml
 import numpy as np
+from sensor_msgs.msg import Joy
 from geometry_msgs.msg import PoseStamped
-from mavros_msgs.msg import RCIn
 from std_msgs.msg import Float32MultiArray
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from utils.generate_elevation_map import generate_heightmap  # Import your actual function
@@ -21,7 +21,7 @@ class BlockHeightmapGenerator:
         self.obstacles = {}
 
         # Setup tracked objects
-        self.rc_sub = rospy.Subscriber('/car/teleop/joy', RCIn, self.rcin_callback)
+        self.rc_sub = rospy.Subscriber('/car/teleop/joy', Joy, self.rcin_callback)
         self.car_off = True
 
         for obj in tracked_objects:
@@ -39,7 +39,7 @@ class BlockHeightmapGenerator:
         self.map_pub = rospy.Publisher('heightmap', Float32MultiArray, queue_size=1)
 
         obstacle_list = [b for b in self.obstacles.values() if b is not None]
-        self.heightmap_raw = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
+        self.heightmap_raw = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap2.npy")
         self.block = np.load('/root/catkin_ws/src/hound_core/config/elevation/block.npy')
         self.ramp = np.load('/root/catkin_ws/src/hound_core/config/elevation/ramp.npy') 
 

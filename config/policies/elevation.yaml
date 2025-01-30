@@ -1,8 +1,8 @@
 throttle_to_wheelspeed: 1.0
-model_path: "1-28-25/elevation1466_model_1450.pt"
+model_path: "1-29-25/elev_model_1400.pt"
 model_type: "mlp"
 steering_max: 0.488
 rate: 20
 obs_type: "goal_based_elevation"
 hidden_shape: [128, 128]
-goal: [-1.0, -2.0, 0.0]
+goal: [-2.0, -2.0, 0.0]

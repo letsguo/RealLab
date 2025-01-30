@@ -78,7 +78,7 @@ class Hound_RLHL_Control:
                                 })
             self.include_last_action = True
             self.last_action_offset = 9
-            self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
+            self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap2.npy")
             self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
         elif self.obs_type == "goal_based_elevation":
             self.state = np.zeros(690, dtype=np.float32)
@@ -91,7 +91,7 @@ class Hound_RLHL_Control:
                                 })
             self.include_last_action = True
             self.last_action_offset = 12
-            self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap.npy")
+            self.heightmap = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap2.npy")
             self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
             self.goal = np.array(config_data["goal"], dtype=np.float32)
         elif self.obs_type == 'rgb':
@@ -213,8 +213,8 @@ class Hound_RLHL_Control:
         control_msg = AckermannDriveStamped()
         control_msg.header.stamp = rospy.Time.now()
         control_msg.header.frame_id = "base_link"
-        control_msg.drive.steering_angle = ctrl[1] * self.steering_max
-        control_msg.drive.speed = max(ctrl[0] * self.throttle_to_wheelspeed, 0)
+        control_msg.drive.steering_angle = -(ctrl[1] * self.steering_max)
+        control_msg.drive.speed = 0.5 #if (ctrl[0] * self.throttle_to_wheelspeed) > 0 else 0
         if not self.start_action:
             control_msg.drive.speed = 0
         if self.include_last_action:
@@ -318,10 +318,10 @@ class Hound_RLHL_Control:
         # remove upper 1/3
         resized_image = resized_image[H//3:, ...]
 
-        #norm = np.linalg.norm(resized_image - np.array([255, 255, 255]), ord=1, axis=-1)
-        #gray_image = np.zeros_like(resized_image[...])
-        #gray_image[norm < 100] = resized_image[norm < 100]
-        #gray_image[norm >= 100] = np.random.uniform(0, 30, size=gray_image[norm >= 100].shape)
+        norm = np.linalg.norm(resized_image - np.array([255, 255, 255]), ord=1, axis=-1)
+        gray_image = np.zeros_like(resized_image[...])
+        gray_image[norm < 100] = resized_image[norm < 100]
+        gray_image[norm >= 100] = np.random.uniform(0, 30, size=gray_image[norm >= 100].shape)
 
         # convert to grayscale
         gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY) / 255.
@@ -329,10 +329,10 @@ class Hound_RLHL_Control:
         # make it unit gaussian assuming mean std of 0.5 0.5
 
         flattened_image = gray_image.reshape(-1)
-        #if self.threshold > 0:
-        #    flattened_image = flattened_image > self.threshold
-        #else:
-        #    flattened_image = self.image = flattened_image
+        if self.threshold > 0:
+           flattened_image = flattened_image > self.threshold
+        else:
+           flattened_image = self.image = flattened_image
 
         self.image = (flattened_image - 0.5) / 0.5
 
