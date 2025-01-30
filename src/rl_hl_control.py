@@ -214,7 +214,7 @@ class Hound_RLHL_Control:
         control_msg.header.stamp = rospy.Time.now()
         control_msg.header.frame_id = "base_link"
         control_msg.drive.steering_angle = ctrl[1] * self.steering_max
-        control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
+        control_msg.drive.speed = max(ctrl[0] * self.throttle_to_wheelspeed, 0)
         if not self.start_action:
             control_msg.drive.speed = 0
         if self.include_last_action:
@@ -318,17 +318,23 @@ class Hound_RLHL_Control:
         # remove upper 1/3
         resized_image = resized_image[H//3:, ...]
 
+        #norm = np.linalg.norm(resized_image - np.array([255, 255, 255]), ord=1, axis=-1)
+        #gray_image = np.zeros_like(resized_image[...])
+        #gray_image[norm < 100] = resized_image[norm < 100]
+        #gray_image[norm >= 100] = np.random.uniform(0, 30, size=gray_image[norm >= 100].shape)
+
         # convert to grayscale
         gray_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY) / 255.
 
         # make it unit gaussian assuming mean std of 0.5 0.5
-        normalized_image = (gray_image - 0.5) / 0.5
 
-        flattened_image = normalized_image.reshape(-1)
-        if self.threshold > 0:
-            self.image = flattened_image > self.threshold
-        else:
-            self.image = flattened_image
+        flattened_image = gray_image.reshape(-1)
+        #if self.threshold > 0:
+        #    flattened_image = flattened_image > self.threshold
+        #else:
+        #    flattened_image = self.image = flattened_image
+
+        self.image = (flattened_image - 0.5) / 0.5
 
     def odom_callback(self, odom):
         if self.imu is None:

@@ -1,6 +1,6 @@
-throttle_to_wheelspeed: 1.0
-model_path: "1-28-25/rgb_model_600.pt"
-model_type: "mlp"
+throttle_to_wheelspeed: 4.0
+model_path: "1-29-25/model_1500.pt"
+model_type: "cnn"
 # model_path: "1-28-25/rgbcnn_model_3950.pt"
 # model_type: "cnn"
 steering_max: 0.488
@@ -8,4 +8,4 @@ rate: 20
 obs_type: "rgb"
 hidden_shape: [128, 128]
 goal: [-1.0, -2.0, 0.0]
-threshold: 0.2
+threshold: -1

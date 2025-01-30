@@ -9,6 +9,7 @@ class RLModel:
         loaded_dict = torch.load(path, map_location=torch.device('cpu'))
         if type == "cnn":
             self.Model = CNNActorCritic(*acargs, **ackwargs)
+            self.Model.eval()
         elif type == "mlp":
             self.Model = ActorCritic(*acargs, **ackwargs)
         else:
@@ -22,6 +23,6 @@ class RLModel:
             return clipped_actions
         
     def get_value(self, state):
-        state = torch.Tensor(state)
+        state = torch.Tensor(state).unsqueeze(0)
         with torch.no_grad():
-            return self.Model.evaluate(state).numpy().astype(numpy.float32)
+            return self.Model.evaluate(state).squeeze(0).numpy().astype(numpy.float32)

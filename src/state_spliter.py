@@ -19,13 +19,13 @@ class StateSplitterNode:
 
     def state_callback(self, msg):
         # Ensure there are enough publishers
-        while len(self.publishers) < len(msg.data):
+        while len(self.publishers) < len(msg.data[3200:]):
             topic_name = f'/state{len(self.publishers) + 1}'
             publisher = rospy.Publisher(topic_name, Float32, queue_size=10)
             self.publishers.append(publisher)
 
         # Publish each item in the array to its respective topic
-        for i, value in enumerate(msg.data):
+        for i, value in enumerate(msg.data[3200:]):
             float_msg = Float32()
             float_msg.data = value
             self.publishers[i].publish(float_msg)

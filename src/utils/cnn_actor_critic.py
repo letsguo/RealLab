@@ -30,20 +30,20 @@ class CNNActorCritic(nn.Module):
         self.feature_dim = feature_dim
         #feature extractor
         self.cnn = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=8, stride=4, padding=0),
-            nn.BathNorm2d(32),
+            nn.Conv2d(1, 32, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
-            nn.BathNorm2d(64),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, self.feature_dim, kernel_size=3, stride=1, padding=0),
-            nn.BathNorm2d(self.feature_dim),
+            nn.Conv2d(64, self.feature_dim, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(self.feature_dim),
             nn.ReLU(),
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
         )
 
-        """
+        '''
         # Compute shape by doing one forward pass
         with torch.no_grad():
             n_flatten = self.cnn(torch.zeros(image_shape).unsqueeze(0).unsqueeze(0)).shape[1]
@@ -52,7 +52,7 @@ class CNNActorCritic(nn.Module):
             nn.Linear(n_flatten, feature_dim),
             nn.ReLU(),
         )
-        """
+        '''
 
         self.num_additional_actor_obs = num_actor_obs - (image_shape[0] * image_shape[1])
         self.num_additional_critic_obs = num_critic_obs - (image_shape[0] * image_shape[1])
@@ -62,7 +62,7 @@ class CNNActorCritic(nn.Module):
 
         # Policy
         actor_layers = []
-        actor_layers.append(nn.Linear(mlp_input_dim_a, actor_hidden_dims[0]), bias=False)
+        actor_layers.append(nn.Linear(mlp_input_dim_a, actor_hidden_dims[0], bias=False))
         actor_layers.append(nn.BatchNorm1d(actor_hidden_dims[0]))
         actor_layers.append(activation)
         for layer_index in range(len(actor_hidden_dims)):

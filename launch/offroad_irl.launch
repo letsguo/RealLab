@@ -47,8 +47,8 @@
 
     <!-- Group of nodes launched only if visualize is true -->
     <group if="$(arg visualize)">
-        <!-- <node pkg="hound_core" type="state_spliter.py" name="state_splitter" output="screen" /> -->
+        <node pkg="hound_core" type="state_spliter.py" name="state_splitter" output="screen" />
         <!-- <node pkg="hound_core" type="pose_republisher.py" name="pose_republisher" output="screen" /> -->
-        <node pkg="hound_core" type="action_republisher.py" name="action_republisher" output="screen" />
+        <!-- <node pkg="hound_core" type="action_republisher.py" name="action_republisher" output="screen" /> -->
     </group>
 </launch>
