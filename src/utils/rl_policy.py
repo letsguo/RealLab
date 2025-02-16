@@ -15,14 +15,17 @@ class RLModel:
         else:
             raise ValueError("Invalid model type")
         self.Model.load_state_dict(loaded_dict["model_state_dict"])
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.Model.to(self.device)
+
     def inference(self, state):
-        state = torch.Tensor(state).unsqueeze(0)
+        state = torch.Tensor(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
             actions = self.Model.act_inference(state).squeeze(0).numpy().astype(numpy.float32)
             clipped_actions = numpy.clip(actions, -1, 1)
             return clipped_actions
         
     def get_value(self, state):
-        state = torch.Tensor(state).unsqueeze(0)
+        state = torch.Tensor(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
             return self.Model.evaluate(state).squeeze(0).numpy().astype(numpy.float32)

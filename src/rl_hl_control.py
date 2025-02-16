@@ -2,7 +2,6 @@
 import rospy
 import cv2
 import numpy as np
-# from hound_mppi import mppi
 from nav_msgs.msg import Odometry, Path as navPath
 from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import Imu, Image, Joy
@@ -18,7 +17,6 @@ from pathlib import Path
 import yaml
 import time
 import torch
-from Bezier import *
 from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from utils.generate_elevation_map import crop_heightmap
@@ -180,8 +178,6 @@ class Hound_RLHL_Control:
             pass
 
     def main_loop(self):
-        ## the pycuda-torch lovechild prefers it if you keep it in a single context rather than invoking
-        # it in a callback which causes it to create new contexts faster than it can delete the old ones leading to rapid memory growth
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             if (self.state_init and self.odom_update):

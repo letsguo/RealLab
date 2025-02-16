@@ -1,6 +1,0 @@
-<launch>
-    <include file="$(find hound_core)/launch/offroad_irl.launch" />
-
-    <node pkg="rosbag" type="record" name="record_hound" output="screen"
-          args="-O /home/hound/hound_ws/hound_run.bag /state /throttle /steering /odom" />
-</launch>

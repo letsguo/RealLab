@@ -1,11 +1,8 @@
-throttle_to_wheelspeed: 1.0
-model_path: "1-29-25/model_1400.pt"
-model_type: "cnn"
-# model_path: "1-28-25/rgbcnn_model_3950.pt"
-# model_type: "cnn"
-steering_max: 0.488
-rate: 20
-obs_type: "rgb"
-hidden_shape: [128, 128]
-goal: [-1.0, -2.0, 0.0]
-threshold: 0.7
+throttle_to_wheelspeed: 1.0 # maximum desired car speed
+model_path: "rgb_model.pt" # location of your model wieghts
+model_type: "mlp" # mlp or cnn
+steering_max: 0.488 # max steering angle in radians
+rate: 20 # control frequency of the policy
+obs_type: "rgb"  # the type of observation that must be passed in to the model
+hidden_shape: [128, 128] # shape of hidden layers
+threshold: 0.7 # the threshold at which to filter black and white regions
