@@ -10,7 +10,7 @@
 2. Go to `config/policies/<POLICY_TO_RUN>.yaml` and configure the model parameters
 3. Use the following command to launch the policy:
 ```bash
-roslaunch hound_core offroad_irl.launch policy:=<POLICY_TO_RUN> robot_name:=<ROBOT_NAME>
+roslaunch real_lab real_lab.launch policy:=<POLICY_TO_RUN> robot_name:=<ROBOT_NAME>
 ```
 4. Arm the mushr (typically by pressing the right trigger)
 5. To log data run the launch command with the `data:=True` arguement
