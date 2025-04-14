@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 import time
 import torch
-from Bezier import *
+# from Bezier import *
 from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from utils.generate_elevation_map import crop_heightmap

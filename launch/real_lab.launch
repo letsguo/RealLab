@@ -22,11 +22,13 @@
     <group if="$(eval arg('robot_name') == 'hound_vio')">
         <include file="$(find realsense2_camera)/launch/rs_t265.launch"/>
         <node pkg="real_lab" type="odom_publisher.py" name="odometry_processor" output="screen"/>
-        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyACM0:921600" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
     </group>
     <group unless="$(eval arg('robot_name') == 'hound_vio')">
         <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="5 hound_core realsense_d455_HOUND.launch" name="camera_timed" output="screen"/>
-        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyACM1:921600" name="apm_timed" 
+        <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyACM1:921600" name="apm_timed" 
+                output="screen" launch-prefix="nice -n -1"/> -->
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyACM0:921600" name="apm_timed" 
                 output="screen" launch-prefix="nice -n -1"/>
     </group>
 
@@ -51,10 +53,12 @@
     <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="15 elevation_mapping_cupy elevation_mapping_cupy_no_vis.launch" name="elevation_mapping" output="log"/>
     <include file="$(find ntrip_ros)/launch/ntripclient.launch"/>  -->
 
-    <node pkg="real_lab" type="rl_hl_control.py" name="high_level_controller" output="screen">
+    <node pkg="real_lab" type="rl_hl_control_test.py" name="high_level_controller" output="screen"/>
+    <!-- <node pkg="real_lab" type="mppi_hl_control.py" name="high_level_controller" output="screen"/> -->
+    <!-- <node pkg="real_lab" type="rl_hl_control.py" name="high_level_controller" output="screen">
         <param name="policy" value="$(arg policy)" />
         <param name="data_collection" value="$(arg data)" />
-    </node>
+    </node> -->
    
     <!-- <node pkg="hound_core" type="hound_hl_control.py" name="high_level_controller" output="screen"/> -->
     <group if ="$(arg data)">
