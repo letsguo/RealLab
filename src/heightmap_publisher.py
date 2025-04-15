@@ -39,9 +39,9 @@ class BlockHeightmapGenerator:
         self.map_pub = rospy.Publisher('heightmap', Float32MultiArray, queue_size=1)
 
         obstacle_list = [b for b in self.obstacles.values() if b is not None]
-        self.heightmap_raw = np.load("/root/catkin_ws/src/hound_core/config/elevation/heightmap2.npy")
-        self.block = np.load('/root/catkin_ws/src/hound_core/config/elevation/block.npy')
-        self.ramp = np.load('/root/catkin_ws/src/hound_core/config/elevation/ramp.npy') 
+        self.heightmap_raw = np.load("/root/catkin_ws/src/real_lab/config/elevation/heightmap.npy")
+        self.block = np.load('/root/catkin_ws/src/real_lab/config/elevation/block.npy')
+        self.ramp = np.load('/root/catkin_ws/src/real_lab/config/elevation/ramp.npy') 
 
         self.heightmap = generate_heightmap(obstacle_list, self.heightmap_raw, self.block, self.ramp)
 

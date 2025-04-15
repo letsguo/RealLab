@@ -134,6 +134,9 @@ class MPPI(torch.nn.Module):
         # Sample rollouts
         with torch.no_grad(): # For nn costs
             controls = self.sampling.sample(prev_controls=self._opt_controls) # [num_envs, K, T, nu]
+            print("CONTROLS")
+            print(controls.shape)
+            print(self.num_envs, self.sampling.K, self.sampling.T, self.sampling.nu)
             self._next_sampled_controls[:] = controls[:, :, 0, :] # [num_envs, T, nu]
             self._rollouts[:] = self.dynamics(x0, controls)
             self._cost_values[:] = self.costs(self._rollouts)  # [num_envs, K, T]

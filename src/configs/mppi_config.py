@@ -64,7 +64,7 @@ class SamplingConfig(DeltaSamplingCfg):
 
 @dataclass
 class MapConfig(BEVMapCfg):
-    map_length_px: int              = 20   # gym map length (pixels)
+    map_length_px: int              = 120   # gym map length (pixels)
     map_res_m_px: float             = 3./19.   # gym map resolution (meters per pixel).
     map_res_hitl: float             = 0.25  # map resolution hitl
     feature_dim: int                = 4     # feature dimension

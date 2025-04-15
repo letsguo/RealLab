@@ -57,6 +57,12 @@ class MPPI_HL_control:
         self.pad_latch = True
 
         self.rate = 50
+        self.steering_max = self.mppi_config.dynamics_cfg.steering_max
+        self.throttle_to_wheelspeed = self.mppi_config.dynamics_cfg.throttle_to_wheelspeed
+
+        # i don't believe i need this because the mppi controller is already using previous action so no point in storing
+        # self.last_action_offset = 12
+        # self.include_last_action = True
 
         self.value_pub = rospy.Publisher("value", Float32MultiArray, queue_size=1)
         self.obs_type = "relative"
@@ -77,7 +83,6 @@ class MPPI_HL_control:
         self.rc_sub = rospy.Subscriber('/mavros/rc/in', RCIn, self.rcin_callback)
 
         self.imu_sub = rospy.Subscriber("/mavros/imu/data", Imu, self.imu_callback)
-        # self.imu_sub = rospy.Subscriber("/fused/imu", Imu, self.imu_callback)
 
         self.ctrl_limits_sub = rospy.Subscriber(
             "/control_limits",
@@ -121,39 +126,42 @@ class MPPI_HL_control:
                 vel_error = np.linalg.norm(self.state[3:5])
                 terminate = pos_error < self.goal_tolerance and vel_error < self.velocity_tolerance
 
-                ctrl = np.zeros(2)
+                ctrl = torch.tensor([0.0, 0.0], dtype=torch.float).to(self.device)
                 if terminate:
                     print("terminate")
                     # self.goal_init = False
-                    ctrl = np.zeros(2)
                 else:
                     # TODO: verify when use_prev_opt should be set to true
-                    # add num_envs to state
-                    expanded_state = np.expand_dims(self.state, axis=0)
-
-
-                    self.mppi_controller.update(expanded_state, self.heightmap)
+                    # add num_envs to state and convert to tensor
+                    expanded_state = torch.from_numpy(self.state).float().unsqueeze(0).to(self.device)
+                    map_tensor = torch.from_numpy(self.heightmap).float().unsqueeze(0).unsqueeze(-1)
+                    map_tensor = map_tensor.repeat(1, 1, 1, 4)
+                    # TODO: temporary solution i don't know if this is right
+                    map_tensor = map_tensor.to(self.device)
+                    self.mppi_controller.update(expanded_state, map_tensor)
+                    # print("STATE", expanded_state.shape)
                     ctrl = self.mppi_controller.optimize(expanded_state, self.use_prev_opt)
-                    print("ctrl", ctrl)
-                # ctrl = self.model.inference(self.state)
+                    print("ctrl before", ctrl)
+                    ctrl = ctrl.squeeze()
+                    print("ctrl after", ctrl)
                 msg = Float32MultiArray()
                 msg.data = self.state.tolist()
                 self.state_pub.publish(msg)
-                if self.collect_data and self.start_action:
-                    msg = Float32MultiArray()
-                    data = np.zeros(15, dtype=np.float32)
-                    data[14] = self.model.get_value(self.state).tolist()[0]
-                    data[0:6] = self.pose.numpy()
-                    data[6:12] = self.twists.numpy()
-                    data[12:14] = ctrl
-                    msg.data = data.tolist()
-                    self.value_pub.publish(msg)
-                    self.pad_latch = True
-                elif self.collect_data and self.pad_latch:
-                    msg = Float32MultiArray()
-                    msg.data = np.zeros(15, dtype=np.float32).tolist()
-                    self.value_pub.publish(msg)
-                    self.pad_latch = False
+                # if self.collect_data and self.start_action:
+                #     msg = Float32MultiArray()
+                #     data = np.zeros(15, dtype=np.float32)
+                #     data[14] = self.model.get_value(self.state).tolist()[0]
+                #     data[0:6] = self.pose.numpy()
+                #     data[6:12] = self.twists.numpy()
+                #     data[12:14] = ctrl
+                #     msg.data = data.tolist()
+                #     self.value_pub.publish(msg)
+                #     self.pad_latch = True
+                # elif self.collect_data and self.pad_latch:
+                #     msg = Float32MultiArray()
+                #     msg.data = np.zeros(15, dtype=np.float32).tolist()
+                #     self.value_pub.publish(msg)
+                #     self.pad_latch = False
                     
                 self.send_ctrl(ctrl)
                 self.odom_update = False
@@ -167,13 +175,15 @@ class MPPI_HL_control:
         control_msg.drive.speed = ctrl[0] * self.throttle_to_wheelspeed
         if not self.start_action:
             control_msg.drive.speed = 0
-        if self.include_last_action:
-            if self.start_action:
-                self.state[self.last_action_offset] = ctrl[0]
-                self.state[self.last_action_offset + 1] = ctrl[1]
-            else:
-                self.state[self.last_action_offset] = 0.0
-                self.state[self.last_action_offset + 1] = 0.0
+        
+        # i don't believe i need this
+        # if self.include_last_action:
+        #     if self.start_action:
+        #         self.state[self.last_action_offset] = ctrl[0]
+        #         self.state[self.last_action_offset + 1] = ctrl[1]
+        #     else:
+        #         self.state[self.last_action_offset] = 0.0
+        #         self.state[self.last_action_offset + 1] = 0.0
         self.control_pub.publish(control_msg)
 
     def obtain_state(self, odom):
@@ -236,6 +246,7 @@ class MPPI_HL_control:
 
     def heightmap_callback(self, msg):
         self.heightmap = np.array(msg.data).reshape(self.heightmap.shape)
+
     def odom_callback(self, odom):
         if self.imu is None:
             return
