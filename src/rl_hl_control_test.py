@@ -19,21 +19,12 @@ from utils.waypoints import Waypoints
 
 # copied imports
 
-from nav_msgs.msg import Odometry, Path as navPath
-from std_msgs.msg import Float32MultiArray
-from sensor_msgs.msg import Imu, Image
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
-from mavros_msgs.msg import RCIn
 from utils.rl_policy import RLModel
-from utils.waypoints import Waypoints
-from visualization_msgs.msg import Marker, MarkerArray
-from ackermann_msgs.msg import AckermannDriveStamped
-from tf.transformations import euler_from_quaternion
 import os
 from pathlib import Path
 import yaml
 import time
-import torch
 from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from utils.generate_elevation_map import crop_heightmap
@@ -45,12 +36,13 @@ class MPPI_HL_control:
         self.cost_config = self.mppi_config.cost_cfg
         self.dynamics_config = self.mppi_config.dynamics_cfg
         self.sampling_config = self.mppi_config.sampling_cfg
-        self.map_config = self.mppi_config.map_cfg
+        # self.map_config = self.mppi_config.map_cfg
         self.vis_config = self.mppi_config.vis_cfg
         self.num_envs = 1
 
         self.goal_tolerance = 0.1  # meters
         self.velocity_tolerance = 0.05  # m/s
+        self.goal = self.mppi_config.cost_cfg.goal_pos
 
         self.device = torch.device("cuda")
         self.mppi_controller = mppi.MPPI(self.mppi_config, self.num_envs, self.device)
@@ -67,6 +59,12 @@ class MPPI_HL_control:
         self.rate = 50
 
         self.value_pub = rospy.Publisher("value", Float32MultiArray, queue_size=1)
+        self.obs_type = "relative"
+        self.state = np.zeros(12, dtype=np.float32)
+
+        ## map
+        self.heightmap = np.load("/root/catkin_ws/src/real_lab/config/elevation/heightmap.npy")
+        self.heightmap_sub = rospy.Subscriber("/heightmap", Float32MultiArray, self.heightmap_callback)
 
         waypoints = Waypoints()
         waypoints.generate_waypoints()
@@ -79,6 +77,7 @@ class MPPI_HL_control:
         self.rc_sub = rospy.Subscriber('/mavros/rc/in', RCIn, self.rcin_callback)
 
         self.imu_sub = rospy.Subscriber("/mavros/imu/data", Imu, self.imu_callback)
+        # self.imu_sub = rospy.Subscriber("/fused/imu", Imu, self.imu_callback)
 
         self.ctrl_limits_sub = rospy.Subscriber(
             "/control_limits",
@@ -115,8 +114,8 @@ class MPPI_HL_control:
         # it in a callback which causes it to create new contexts faster than it can delete the old ones leading to rapid memory growth
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
-            print("STATE INIT", self.state_init)
-            print("ODOM UPDATE", self.odom_update)
+            # print("STATE INIT", self.state_init)
+            # print("ODOM UPDATE", self.odom_update)
             if (self.state_init and self.odom_update):
                 pos_error = np.linalg.norm(self.state[:2] - self.goal[:2])
                 vel_error = np.linalg.norm(self.state[3:5])
@@ -124,14 +123,19 @@ class MPPI_HL_control:
 
                 ctrl = np.zeros(2)
                 if terminate:
+                    print("terminate")
                     # self.goal_init = False
                     ctrl = np.zeros(2)
                 else:
                     # TODO: verify when use_prev_opt should be set to true
-                    print("GOT HERE")
-                    self.mppi_controller.update(self.state, self.map_config)
-                    ctrl = self.mppi_controller.optimize(self.state, self.use_prev_opt)
-                ctrl = self.model.inference(self.state)
+                    # add num_envs to state
+                    expanded_state = np.expand_dims(self.state, axis=0)
+
+
+                    self.mppi_controller.update(expanded_state, self.heightmap)
+                    ctrl = self.mppi_controller.optimize(expanded_state, self.use_prev_opt)
+                    print("ctrl", ctrl)
+                # ctrl = self.model.inference(self.state)
                 msg = Float32MultiArray()
                 msg.data = self.state.tolist()
                 self.state_pub.publish(msg)
@@ -222,15 +226,16 @@ class MPPI_HL_control:
         # else:
         #     ValueError("must choose valid obs type")
 
-    def obtain_blind_state(self, odom):
-        self.state[:6] = self.pose.numpy()
-        self.state[6:12] = self.twists.numpy()
+    # def obtain_blind_state(self, odom):
+    #     self.state[:6] = self.pose.numpy()
+    #     self.state[6:12] = self.twists.numpy()
 
     def obtain_relative_state(self, odom):
         self.state[:6] = self.pos_angle(self.pose).numpy()
         self.state[6:12] = self.twists.numpy()
 
-    
+    def heightmap_callback(self, msg):
+        self.heightmap = np.array(msg.data).reshape(self.heightmap.shape)
     def odom_callback(self, odom):
         if self.imu is None:
             return
@@ -238,6 +243,7 @@ class MPPI_HL_control:
         if not self.state_init:
             self.state_init = True
         self.odom_update = True  ## indicate that a new reading is available
+        print("FINISHED")
 
     def imu_callback(self, imu):
         self.imu = imu

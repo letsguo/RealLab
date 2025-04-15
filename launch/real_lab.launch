@@ -22,13 +22,13 @@
     <group if="$(eval arg('robot_name') == 'hound_vio')">
         <include file="$(find realsense2_camera)/launch/rs_t265.launch"/>
         <node pkg="real_lab" type="odom_publisher.py" name="odometry_processor" output="screen"/>
-        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyACM0:921600" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyUSB1:921600" name="apm_timed" output="screen" launch-prefix="nice -n -1"/>
     </group>
     <group unless="$(eval arg('robot_name') == 'hound_vio')">
         <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="5 hound_core realsense_d455_HOUND.launch" name="camera_timed" output="screen"/>
         <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyACM1:921600" name="apm_timed" 
                 output="screen" launch-prefix="nice -n -1"/> -->
-        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyACM0:921600" name="apm_timed" 
+        <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="10 hound_core apm.launch fcu_url:=/dev/ttyUSB1:921600" name="apm_timed" 
                 output="screen" launch-prefix="nice -n -1"/>
     </group>
 
@@ -58,6 +58,14 @@
     <!-- <node pkg="real_lab" type="rl_hl_control.py" name="high_level_controller" output="screen">
         <param name="policy" value="$(arg policy)" />
         <param name="data_collection" value="$(arg data)" />
+    </node> -->
+
+    <!-- <node pkg="imu_filter_madgwick" type="imu_filter_node" name="imu_filter">
+        <param name="use_mag" value="false" />
+        <param name="publish_tf" value="false" />
+        <remap from="imu/data_raw" to="/camera/gyro/sample" />
+        <remap from="imu/accel" to="/camera/accel/sample" />
+        <remap from="imu/data" to="/fused/imu" />
     </node> -->
    
     <!-- <node pkg="hound_core" type="hound_hl_control.py" name="high_level_controller" output="screen"/> -->
