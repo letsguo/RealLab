@@ -21,7 +21,7 @@ from mppi.core import (
 class MinCostConfig(MinimalCostCfg):
     goal_w: float                   = 1.
     speed_w: float                  = 10.
-    goal_pos: list                  = field(default_factory=lambda: [10.0, 10.0, 0.0])
+    goal_pos: list                  = field(default_factory=lambda: [1.0, -2.0, 0.0])
     target_speed: float             = 2.
 
 
@@ -31,7 +31,7 @@ class DynamicsConfig(SimpleCarDynamicsNoActionCfg):
     feat_dim: Union[int, None] = None
     concatenate_feats: bool            = False  # concatenate features to rollout states
     wheelbase: float                = 0.33   # wheelbase
-    throttle_to_wheelspeed: float   = 3.0   # throttle to wheelspeed
+    throttle_to_wheelspeed: float   = 1.0   # throttle to wheelspeed
     steering_max: float             = 0.488   # maximum steering angle
     dt: float                       = 0.05   # time step
 

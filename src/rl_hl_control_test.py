@@ -119,8 +119,6 @@ class MPPI_HL_control:
         # it in a callback which causes it to create new contexts faster than it can delete the old ones leading to rapid memory growth
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
-            # print("STATE INIT", self.state_init)
-            # print("ODOM UPDATE", self.odom_update)
             if (self.state_init and self.odom_update):
                 pos_error = np.linalg.norm(self.state[:2] - self.goal[:2])
                 vel_error = np.linalg.norm(self.state[3:5])
@@ -139,11 +137,9 @@ class MPPI_HL_control:
                     # TODO: temporary solution i don't know if this is right
                     map_tensor = map_tensor.to(self.device)
                     self.mppi_controller.update(expanded_state, map_tensor)
-                    # print("STATE", expanded_state.shape)
                     ctrl = self.mppi_controller.optimize(expanded_state, self.use_prev_opt)
-                    print("ctrl before", ctrl)
                     ctrl = ctrl.squeeze()
-                    print("ctrl after", ctrl)
+                    # print("CONTROLS", ctrl)
                 msg = Float32MultiArray()
                 msg.data = self.state.tolist()
                 self.state_pub.publish(msg)
@@ -254,7 +250,6 @@ class MPPI_HL_control:
         if not self.state_init:
             self.state_init = True
         self.odom_update = True  ## indicate that a new reading is available
-        print("FINISHED")
 
     def imu_callback(self, imu):
         self.imu = imu

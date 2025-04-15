@@ -36,7 +36,7 @@
     <node pkg="hound_core" type="HAL_9000.py" name="HAL" output="screen"/>    
     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="50 hound_core vesc_driver_node.launch" name="vesc_timed" output="screen"/>
 
-    <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="30 hound_core X4.launch" name="lidar_timed" output="screen"/> -->
+    <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="30 hound_core X4.launch" name="lidar_timed" output="screen"/>
 
     <!-- uncomment the following two lines to use visual odometry (make sure to set EK3_SRC2_VELXY and EK3_SRC2_VELZ to 6 in ardupilot params) -->
 <!--     <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="90 hound_core HOUND_vis_odom.launch" name="vis_odom" output="log"/>
@@ -53,6 +53,7 @@
     <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="15 elevation_mapping_cupy elevation_mapping_cupy_no_vis.launch" name="elevation_mapping" output="log"/>
     <include file="$(find ntrip_ros)/launch/ntripclient.launch"/>  -->
 
+    <!-- comment the line below out if doing teleop and want to record -->
     <node pkg="real_lab" type="rl_hl_control_test.py" name="high_level_controller" output="screen"/>
     <!-- <node pkg="real_lab" type="mppi_hl_control.py" name="high_level_controller" output="screen"/> -->
     <!-- <node pkg="real_lab" type="rl_hl_control.py" name="high_level_controller" output="screen">
