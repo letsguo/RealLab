@@ -21,7 +21,7 @@ from mppi.core import (
 class MinCostConfig(MinimalCostCfg):
     goal_w: float                   = 1.
     speed_w: float                  = 10.
-    goal_pos: list                  = field(default_factory=lambda: [1.0, -2.0, 0.0])
+    goal_pos: list                  = field(default_factory=lambda: [1.0, 0.0, 0.0])
     target_speed: float             = 2.
 
 
@@ -95,7 +95,7 @@ class MPPIConfig(MPPICfg):
     debug: bool                     = False
 
     cost_cfg: MinCostConfig         = MinCostConfig()
-    dynamics_cfg: DynamicsConfig     = DynamicsConfig()
+    dynamics_cfg: DynamicsNoActionConfig     = DynamicsNoActionConfig()
     sampling_cfg: DeltaSamplingCfg     = SamplingConfig()
     map_cfg: MapConfig               = MapConfig()
     vis_cfg: VisConfig               = VisConfig()

@@ -54,7 +54,7 @@
     <include file="$(find ntrip_ros)/launch/ntripclient.launch"/>  -->
 
     <!-- comment the line below out if doing teleop and want to record -->
-    <node pkg="real_lab" type="rl_hl_control_test.py" name="high_level_controller" output="screen"/>
+    <node pkg="real_lab" type="mppi_hl_control.py" name="high_level_controller" output="screen"/>
     <!-- <node pkg="real_lab" type="mppi_hl_control.py" name="high_level_controller" output="screen"/> -->
     <!-- <node pkg="real_lab" type="rl_hl_control.py" name="high_level_controller" output="screen">
         <param name="policy" value="$(arg policy)" />
