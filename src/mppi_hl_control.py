@@ -141,7 +141,7 @@ class MPPI_HL_control:
                     ctrl = self.mppi_controller.optimize(expanded_state, self.use_prev_opt)
                     ctrl = ctrl.squeeze()
                     ctrl = torch.tensor([.8, 1.5])
-                    print("CONTROLS", ctrl)
+                    # print("CONTROLS", ctrl)
                 msg = Float32MultiArray()
                 msg.data = self.state.tolist()
                 self.state_pub.publish(msg)
