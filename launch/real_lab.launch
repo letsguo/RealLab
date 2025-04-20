@@ -41,16 +41,19 @@
     <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="15 elevation_mapping_cupy elevation_mapping_cupy_no_vis.launch" name="elevation_mapping" output="log"/>
     <include file="$(find ntrip_ros)/launch/ntripclient.launch"/>  -->
 
-    <node pkg="real_lab" type="rl_hl_control.py" name="high_level_controller" output="screen">
+    <!-- <node pkg="real_lab" type="rl_hl_control.py" name="high_level_controller" output="screen">
         <param name="policy" value="$(arg policy)" />
         <param name="data_collection" value="$(arg data)" />
         <param name="odom" value="$(arg odom_topic)"/>
         <param name="use_mocap" value="$(arg mocap)"/>
-    </node>
+    </node> -->
    
     <group if ="$(arg data)">
-        <node pkg="real_lab" type="data_collector.py" name="data_collector" output="screen"/>
+        <!-- <node pkg="real_lab" type="data_collector.py" name="data_collector" output="screen"/> -->
+        <node pkg="real_lab" type="img_recorder.py" name="img_recorder" output="screen"/>
     </group>
+    
+    <node pkg="real_lab" type="teleop.py" name="teleop" output="screen"/>
 
     <!-- Group of nodes launched only if visualize is true -->
     <group if="$(arg visualize)">
