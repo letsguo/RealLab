@@ -53,7 +53,12 @@
         <node pkg="real_lab" type="img_recorder.py" name="img_recorder" output="screen"/>
     </group>
     
-    <node pkg="real_lab" type="teleop.py" name="teleop" output="screen"/>
+    <!-- <node pkg="real_lab" type="teleop.py" name="teleop" output="screen"/> -->
+    <node pkg="real_lab" type="mppi_hl_control.py" name="high_level_controller" output="screen"/>
+    <!-- comment the line below if you want to record data into rosbag-->
+      <!-- <node pkg="real_lab" type="image_recorder_copy.py" name="recorder" output="screen">
+            <param name="bag_file" value="$(env HOME)/catkin_ws/src/RealLab/data_2.bag" />
+        </node> -->
 
     <!-- Group of nodes launched only if visualize is true -->
     <group if="$(arg visualize)">

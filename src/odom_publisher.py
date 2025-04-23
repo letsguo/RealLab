@@ -21,7 +21,12 @@ class OdometryProcessorNode:
 
         # set these to whatever you want starting position to be
         self.absolute_quat = [0.0,0.0,0.707,0.707]
-        self.xyz_offsets = np.array([1.0,0.0,0.0])
+        
+        # for drift
+        # self.xyz_offsets = np.array([1.0,0.0,0.0])
+        # for mppi
+        self.xyz_offsets = np.array([0.0,0.0,0.0])
+
         
         self.offset_quat = [0.0,0.0,0.0,1.0]
         self.cam_rotation_quat = [1.0,0.0,0.0,0.0]

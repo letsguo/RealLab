@@ -5,6 +5,7 @@ from ackermann_msgs.msg import AckermannDriveStamped
 
 class Teleop:
     def __init__(self):
+        print("TELEOP INIT")
         # Axis config for PS5 sticks
         # self.throttle_axis = rospy.get_param("~throttle_axis", 1)   # Left stick Y
         # self.steering_axis = rospy.get_param("~steering_axis", 2)   # Right stick X
