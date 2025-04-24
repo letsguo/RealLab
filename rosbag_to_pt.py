@@ -6,7 +6,7 @@ import cv2
 
 # === CONFIG ===
 bag_path = 'data_2.bag'             # Replace with your .bag file
-output_pt = 'rosbag_data_2.pt'     # Output .pt file
+output_pt = 'rosbag_data_3.pt'     # Output .pt file
 image_topic = '/camera/color/image_raw'
 odom_topic = '/car/odom'
 
@@ -31,7 +31,8 @@ with rosbag.Bag(bag_path, 'r') as bag:
         elif topic == odom_topic:
             pos = msg.pose.pose.position
             ori = msg.pose.pose.orientation
-            pose_tensor = torch.tensor([pos.x, pos.y, pos.z, ori.x, ori.y, ori.z, ori.w])
+            velocity = msg.twist.twist.linear
+            pose_tensor = torch.tensor([pos.x, pos.y, pos.z, ori.x, ori.y, ori.z, ori.w, velocity.x, velocity.y, velocity.z])
             poses.append((timestamp, pose_tensor))
 
 # === SAVE TO .pt ===
