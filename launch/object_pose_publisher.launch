@@ -1,0 +1,55 @@
+<launch>
+  <arg name="mocap_topic" default="mocap" />
+  <arg name="odom_topic" default="local_position/odom" />
+  <arg name="pose_topic" default="local_position/pose" />
+
+  <arg name="filter_alpha" default="0.2" />
+  <!-- this is the IP address of the windows system publishing the mocap poses -->
+  <arg name="server" default="192.168.0.184"/>
+  <arg name="asset_name" default="hound_vio" />
+  <arg name="obstacle_1" default="obstacle_1" />
+  <arg name="obstacle_2" default="obstacle_2" />
+  <arg name="obstacle_3" default="obstacle_3" />
+  <arg name="obstacle_4" default="obstacle_4" />
+  <arg name="obstacle_5" default="obstacle_5" />
+  <arg name="obstacle_6" default="obstacle_6" />
+  <arg name="obstacle_7" default="obstacle_7" />
+  <node pkg="vrpn_client_ros" type="vrpn_client_node" name="vrpn_client_obstacle_poses" output="screen">
+    <rosparam subst_value="true">
+      server: $(arg server)
+      port: 3883
+
+      update_frequency: 360.0
+      frame_id: map
+
+      # Use the VRPN server's time, or the client's ROS time.
+      use_server_time: false
+      broadcast_tf: true
+
+      # Must either specify refresh frequency > 0.0, or a list of trackers to create
+      <!-- refresh_tracker_frequency: 1.0 -->
+      trackers:
+       - $(arg obstacle_1)
+       - $(arg obstacle_2)
+       - $(arg obstacle_3)
+       - $(arg obstacle_4)
+       - $(arg obstacle_5)
+       - $(arg obstacle_6)
+       - $(arg obstacle_7)
+
+    </rosparam>
+  </node>
+
+  <node pkg="dbf" type="object_pose.py" name="object_pose_offset_node" output="screen">
+    <rosparam param="tracked_objects" subst_value="true">
+      [$(arg obstacle_1),
+       $(arg obstacle_2),
+       $(arg obstacle_3),
+       $(arg obstacle_4),
+       $(arg obstacle_5),
+       $(arg obstacle_6),
+       $(arg obstacle_7)]
+    </rosparam>
+  </node>
+
+</launch>

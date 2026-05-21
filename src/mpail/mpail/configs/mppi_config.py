@@ -1,37 +1,31 @@
-# from isaaclab.utils import configclass
+from isaaclab.utils import configclass
 from dataclasses import dataclass, field
-# from isaaclab_copy import configclass
 
-from mppi.core.vis.rollout_vis import RolloutsVisualization
-
-from typing import Union, Type
-
-
-from mppi.core import (
+from mpail.mppi.core import (
     SimpleCarCostCfg, MinimalCostCfg,
     SimpleCarDynamicsCfg, SimpleCarDynamicsNoActionCfg,
-    DeltaSamplingCfg, SamplingCfg,
+    DeltaSamplingCfg,
     BEVMapCfg,
     MPPICfg,
     RolloutVisConfig
 )
 
 
-@dataclass ## Check. Should we use dataclass or configclass? 
+@configclass
 class MinCostConfig(MinimalCostCfg):
-    goal_w: float                   = 10.
-    speed_w: float                  = 0.
-    goal_pos: list                  = field(default_factory=lambda: [2.0, -2.0, 0.0])
+    goal_w: float                   = 1.
+    speed_w: float                  = 10.
+    goal_pos: list                  = [10., 10., 0.]
     target_speed: float             = 2.
 
 
 @dataclass
 class DynamicsConfig(SimpleCarDynamicsNoActionCfg):
 
-    feat_dim: Union[int, None] = None
+    feat_dim: int | None               = None     # feature dimension
     concatenate_feats: bool            = False  # concatenate features to rollout states
     wheelbase: float                = 0.33   # wheelbase
-    throttle_to_wheelspeed: float   = 1.0   # throttle to wheelspeed
+    throttle_to_wheelspeed: float   = 3.0   # throttle to wheelspeed
     steering_max: float             = 0.488   # maximum steering angle
     dt: float                       = 0.05   # time step
 
@@ -40,53 +34,44 @@ class DynamicsNoActionConfig(SimpleCarDynamicsNoActionCfg):
     '''
     Configuration class for SimpleCarDynamics
     '''
-    feat_dim: Union[int, None] = None
+    feat_dim: int | None               = None     # feature dimension
     concatenate_feats: bool            = False  # concatenate features to rollout states
-    wheelbase: float                = 0.33   # wheelbase
+    wheelbase: float                = 0.325   # wheelbase
     throttle_to_wheelspeed: float   = 3.0   # throttle to wheelspeed
-    steering_max: float             = 0.488   # maximum steering angle
+    steering_max: float             = 0.4   # maximum steering angle
     dt: float                       = 0.1   # time step
 
 @dataclass
-# class SamplingConfig():
 class SamplingConfig(DeltaSamplingCfg):
+
     control_dim: int                = 2     # control dimension
     noise_0: float                  = 1.0   # noise 0
     noise_1: float                  = 0.5   # noise 1
     scaled_dt: float                = 0.1   # scaled dt
-    max_dv: float                   = 2.0  # max delta throttle per step
-    max_dtheta: float               = 2.0  # max delta steering per step
+    max_dv: float                   = 0.20  # max delta throttle per step
+    max_dtheta: float               = 0.20  # max delta steering per step
     max_thr: float                  = 1.0   # max throttle (delta v)
     min_thr: float                  = 0.0   # min throttle
     num_rollouts: int               = 1024  # number of rollouts
     num_timesteps: int              = 20    # number of timesteps
-    temperature: int             = 0.02  # temperature (keep at 0.02 or 0.03)
 
 @dataclass
 class MapConfig(BEVMapCfg):
-    map_length_px: int              = 48   # gym map length (pixels)
-    map_res_m_px: float             = 1. / 94.21   # gym map resolution (meters per pixel).
+    map_length_px: int              = 20   # gym map length (pixels)
+    map_res_m_px: float             = 3./19.   # gym map resolution (meters per pixel).
     map_res_hitl: float             = 0.25  # map resolution hitl
     feature_dim: int                = 4     # feature dimension
-    # TODO: may need to change to match the elevation map, look at existing yaml file
-    # map_length_px: int              = 120   # gym map length (pixels)
-    # map_res_m_px: float             = 3./19.   # gym map resolution (meters per pixel).
-    # map_res_hitl: float             = 0.25  # map resolution hitl
-    # feature_dim: int                = 4     # feature dimension
+
 
 @dataclass
-class VisConfig():
-    vis_n_envs: int                 = 1    # number of environments to visualize
+class VisConfig(RolloutVisConfig):
+    vis_n_envs: int                 = 4     # number of environments to visualize
     vis_n_rollouts: int             = 10     # number of rollouts to visualize
-    xlim: tuple                = (-10, 10)
-    ylim: tuple                = (-10, 10)
+    xlim: tuple                = (-1, 1)
+    ylim: tuple                = (-1, 1)
     show_velocity: bool             = False
     show_elevation: bool            = False
     cost_range: tuple               = None  # cost range for visualization
-    save_dir: str                 = "/root/catkin_ws/src/RealLab/rollout_vis/"  # directory to save visualizations
-    class_type: Type[RolloutsVisualization] = RolloutsVisualization
-    # show_trajectory_trace = False
-    # vis_rollouts: bool = True
 
 
 @dataclass
@@ -99,8 +84,8 @@ class MPPIConfig(MPPICfg):
     debug: bool                     = False
 
     cost_cfg: MinCostConfig         = MinCostConfig()
-    dynamics_cfg: DynamicsNoActionConfig     = DynamicsNoActionConfig()
-    sampling_cfg: DeltaSamplingCfg     = SamplingConfig()
+    dynamics_cfg: DynamicsConfig     = DynamicsConfig()
+    sampling_cfg: SamplingConfig     = SamplingConfig()
     map_cfg: MapConfig               = MapConfig()
     vis_cfg: VisConfig               = VisConfig()
 

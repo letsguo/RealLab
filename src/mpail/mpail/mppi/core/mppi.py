@@ -1,8 +1,10 @@
 import torch
 from typing import TYPE_CHECKING
-from dataclasses import asdict
 
 from .maps.bev_map import BEVMap
+
+from mpail.utils import resolve_obj
+# import ipdb
 
 if TYPE_CHECKING:
     from . import MPPICfg
@@ -10,7 +12,7 @@ if TYPE_CHECKING:
 # TODO: restore to original MPPI
 class MPPI(torch.nn.Module):
     def __init__(self,
-                 mppi_config: "MPPICfg",
+                 mppi_config: 'MPPICfg',
                  num_envs: int,
                  device: torch.device = "cuda",
                  dtype = torch.float):
@@ -22,24 +24,24 @@ class MPPI(torch.nn.Module):
 
         self.cfg = mppi_config
 
-        self.bevmap:BEVMap = self.cfg.map_cfg.class_type(
+        self.bevmap:BEVMap = resolve_obj(self.cfg.map_cfg.class_type)(
             self.cfg.map_cfg,
             self.num_envs,
             device=self.device,
             dtype=self.dtype
         )
-        self.dynamics = self.cfg.dynamics_cfg.class_type(
+        self.dynamics = resolve_obj(self.cfg.dynamics_cfg.class_type)(
             self.cfg.dynamics_cfg,
             self.num_envs,
             bevmap=self.bevmap,
             device=self.device,
         )
-        self.costs = self.cfg.cost_cfg.class_type(
+        self.costs = resolve_obj(self.cfg.cost_cfg.class_type)(
             self.cfg.cost_cfg,
             self.num_envs,
             device=self.device
         )
-        self.sampling = self.cfg.sampling_cfg.class_type(
+        self.sampling = resolve_obj(self.cfg.sampling_cfg.class_type)(
             self.cfg.sampling_cfg,
             self.num_envs,
             device=self.device
@@ -66,19 +68,13 @@ class MPPI(torch.nn.Module):
         self._next_sampled_controls = torch.zeros((self.num_envs, self.sampling.K, self.sampling.nu),
                                                   device=self.device, dtype=self.dtype) # Sampled controls
 
-        self.time = 0
-
         self.reset()
 
         # Initialize visualization if configured
         self.vis = None
         vis_cfg = getattr(self.cfg, "vis_cfg", None)
         if vis_cfg:
-            vis_cfg_dict = asdict(vis_cfg)
-            vis_cfg_dict.pop("map_res_m_px", None)
-            vis_cfg_dict.pop("map_length_px", None)
-            print("MPPI: Initializing visualization with config: ", vis_cfg_dict.keys)
-            self.vis = vis_cfg.class_type(**vis_cfg_dict,
+            self.vis = resolve_obj(vis_cfg.class_type)(**vis_cfg.to_dict(),
                                           map_res_m_px=self.cfg.map_cfg.map_res_m_px,
                                           map_length_px=self.cfg.map_cfg.map_length_px,)
 
@@ -95,13 +91,27 @@ class MPPI(torch.nn.Module):
         else:
             self._opt_controls[reset_inds] = 0.
 
-    def step(self, x0, map, use_prev_opt=True) -> torch.Tensor:
+    def step(self, x0, map, use_prev_opt:bool=True) -> torch.Tensor:
         '''
         Perform update and forward pass of the MPPI controller in immediate sequence.
         Returns next best controls. Seeds optimization with previous optimal controls.
         '''
         self.update(x0, map) # Update belief
-        return self.optimize(x0, use_prev_opt=use_prev_opt) # Forward pass and next best control
+
+        # Seeds samples with previous mean if use_prev_opt is True
+        if use_prev_opt:
+            # Fills in the last u_per_command controls with the last control
+            _last_opt_controls = self._opt_controls[:, -self.u_per_command, :].unsqueeze(-2)
+            self._opt_controls[:] = torch.roll(self._opt_controls, shifts=self.u_per_command, dims=1)
+            self._opt_controls[:, -self.u_per_command:, :] = _last_opt_controls
+        else:
+            self._opt_controls[:] = 0.
+
+        for _ in range(self.cfg.opt_iters):
+            # Subsequent optimization uses previous optimal controls
+            actions = self.optimize(x0)
+
+        return actions # Forward pass and next best control
 
     def update(self, x0, map):
         '''Updates belief of the MPPI controller with new agent state (x0) and maps.'''
@@ -117,26 +127,17 @@ class MPPI(torch.nn.Module):
         # elev_map = elev_map.flip(1) #flip elev_map to match the perspective of the camera
         self.bevmap.update(map, _xyz, _yaw)
 
-    def optimize(self, x0, use_prev_opt:bool=False) -> torch.Tensor:
+    def optimize(self, x0) -> torch.Tensor:
         """
         Perform forward pass of the MPPI controller.
         :param: x0
-        :use_prev_opt: If true, uses the previous optimal controls
-                        for computing the next controls.
+
+        Uses current self._opt_controls as the mean for sampling.
 
         Weight computation adapted from:
         https://github.com/UM-ARM-Lab/pytorch_mppi/blob/bfcc9150ec9066fb5a0f01b65ddb603c49c66867/src/pytorch_mppi/mppi.py#L197
         """
         assert x0.shape[-1] == self._x.shape[-1]
-
-        # Seeds samples with previous mean if use_prev_opt is True
-        if use_prev_opt:
-            # Fills in the last u_per_command controls with the last control
-            _last_opt_controls = self._opt_controls[:, -self.u_per_command, :].unsqueeze(-2)
-            self._opt_controls[:] = torch.roll(self._opt_controls, shifts=self.u_per_command, dims=1)
-            self._opt_controls[:, -self.u_per_command:, :] = _last_opt_controls
-        else:
-            self._opt_controls[:] = 0.
 
         # Sample rollouts
         with torch.no_grad(): # For nn costs
@@ -160,66 +161,49 @@ class MPPI(torch.nn.Module):
         next_controls = self._opt_controls[:, :self.u_per_command, :]
         if self._opt_controls.isnan().any():
             raise ValueError("Optimal controls contain NaNs.")
-        # creates many many photos under 
-        # self.create_vis()
         return next_controls
 
     def create_vis(self):
         '''Creates a visualization using the current state of the MPPI controller.'''
 
-        if not self.vis:
-            raise ValueError("Debug visualization is not enabled. Enable visualization by providing " +
-                             "a visualizer config to the MPPI configuration.")
+        with torch.no_grad():
 
-        # TODO: visualize optimized rollout
-        vis_env_ids = list(range(self.vis.vis_n_envs))
-        vis_rollouts = self._rollouts[vis_env_ids] # [n_envs, n_rollouts, horizon, state_dim]
-        vis_costs = self._cost_values[vis_env_ids] # [n_envs, n_rollouts, horizon]
-        horizon, state_dim = vis_rollouts.shape[2:]
+            if not self.vis:
+                raise ValueError("Debug visualization is not enabled. Enable visualization by providing " +
+                                "a visualizer config to the MPPI configuration.")
 
-        # Get topk rollouts
-        topk_cost_inds = torch.topk(vis_costs.sum(dim=-1), k=self.vis.vis_n_rollouts, largest=False).indices
-        topk_rollout_inds = topk_cost_inds.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, horizon, state_dim)
-        topk_vis_rollouts = vis_rollouts.gather(dim=1, index=topk_rollout_inds)
-        topk_cost_rollout_inds = topk_cost_inds.unsqueeze(-1).expand(-1, -1, horizon)
-        topk_vis_costs = vis_costs.gather(dim=1, index=topk_cost_rollout_inds)
+            # TODO: visualize optimized rollout
+            vis_env_ids = list(range(self.vis.vis_n_envs))
+            vis_rollouts = self._rollouts[vis_env_ids] # [n_envs, n_rollouts, horizon, state_dim]
+            vis_costs = self._cost_values[vis_env_ids] # [n_envs, n_rollouts, horizon]
+            horizon, state_dim = vis_rollouts.shape[2:]
 
-        # Get k random rollouts
-        # TODO: add this to config
-        # rand_inds = torch.randperm(vis_rollouts.shape[1])[:self.vis.vis_n_rollouts]
-        # rand_vis_rollouts = vis_rollouts[:, rand_inds]
-        # rand_vis_costs = vis_costs[:, rand_inds]
+            # Get topk rollouts
+            topk_cost_inds = torch.topk(vis_costs.sum(dim=-1), k=self.vis.vis_n_rollouts, largest=False).indices
+            topk_rollout_inds = topk_cost_inds.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, horizon, state_dim)
+            topk_vis_rollouts = vis_rollouts.gather(dim=1, index=topk_rollout_inds)
+            topk_cost_rollout_inds = topk_cost_inds.unsqueeze(-1).expand(-1, -1, horizon)
+            topk_vis_costs = vis_costs.gather(dim=1, index=topk_cost_rollout_inds)
 
-        # vis_rollouts = torch.cat([topk_vis_rollouts, rand_vis_rollouts], dim=1)
-        # vis_costs = torch.cat([topk_vis_costs, rand_vis_costs], dim=1)
-        vis_rollouts = topk_vis_rollouts
-        vis_costs = topk_vis_costs
+            # Get k random rollouts
+            # TODO: add this to config
+            rand_inds = torch.randperm(vis_rollouts.shape[1])[:self.vis.vis_n_rollouts]
+            rand_vis_rollouts = vis_rollouts[:, rand_inds]
+            rand_vis_costs = vis_costs[:, rand_inds]
 
-        # convert to numpy and send to vis
-        x0 = self._x.cpu().numpy()
-        vis_rollouts = vis_rollouts.cpu().numpy()
-        vis_costs = vis_costs.cpu().numpy()
-        elevation_map = self.bevmap.map.cpu().numpy()
-        opt_states = self.dynamics(self._x, self._opt_controls).cpu().numpy() # [num_envs, T, state_dim]
-        self.vis.update(
-            x0,
-            vis_rollouts,
-            rollout_costs=vis_costs,
-            elevation_map=elevation_map,
-            optimal_control=opt_states,
-            frame_timestep = self.time
-        )
-        self.time += 1
-    
-    def save_vis(self):
-        print("Saving video to: ", self.vis.save_dir)
-        self.vis.save_video(self.vis.save_dir, frame_rate=10)
+            vis_rollouts = torch.cat([topk_vis_rollouts, rand_vis_rollouts], dim=1)
+            vis_costs = torch.cat([topk_vis_costs, rand_vis_costs], dim=1)
 
-
-    # TODO: for dynamics parameters
-    # def update_goal()
-        
-    #     goal = rospy.get_param("goal")
-        
-    # def reset_pos()
-    
+            # convert to numpy and send to vis
+            x0 = self._x.cpu().numpy()
+            vis_rollouts = vis_rollouts.cpu().numpy()
+            vis_costs = vis_costs.cpu().numpy()
+            elevation_map = self.bevmap.map.cpu().numpy()
+            opt_states = self.dynamics(self._x, self._opt_controls).cpu().numpy() # [num_envs, T, state_dim]
+            self.vis.update(
+                x0,
+                vis_rollouts,
+                rollout_costs=vis_costs,
+                elevation_map=elevation_map,
+                optimal_control=opt_states
+            )

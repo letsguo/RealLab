@@ -3,7 +3,6 @@ import rospy
 import rosbag
 from sensor_msgs.msg import Image, Imu
 from nav_msgs.msg import Odometry
-from cv_bridge import CvBridge
 import threading
 import message_filters
 
@@ -12,22 +11,15 @@ class RosbagRecorder:
         self.bag = rosbag.Bag(bag_path, 'w')
         # self.odom_topic = odom_topic
 
-        # active flag
         self.active = True
         self.lock = threading.Lock()
 
-
-        # Subscribe to topics
-        # self.img_sub  = rospy.Subscriber('/camera/color/image_raw', Image,   self.image_cb, queue_size=1)
-        # self.odom_sub = rospy.Subscriber('/car/odom',               Odometry, self.odom_cb, queue_size=1)
-        # self.imu_sub  = rospy.Subscriber('/camera/gyro/sample',      Imu,     self.imu_cb, queue_size=1)
-
-        # Subscribers using message_filters
-        img_sub  = message_filters.Subscriber('/camera/color/image_raw', Image)
-        odom_sub = message_filters.Subscriber('/car/odom', Odometry)
+        self.img_sub  = message_filters.Subscriber('/camera/color/image_raw', Image)
+        self.odom_sub = message_filters.Subscriber('/car/odom', Odometry)
+        self.ang_vel_sub = message_filters.Subscriber('/camera/gyro/sample', Imu)
 
         ats = message_filters.ApproximateTimeSynchronizer(
-            [img_sub, odom_sub],
+            [self.img_sub, self.odom_sub, self.ang_vel_sub],
             queue_size=10,
             slop=0.05,  # allow 50ms time difference
             allow_headerless=False
@@ -36,36 +28,12 @@ class RosbagRecorder:
         ats.registerCallback(self.synced_callback)
         # Ensure bag is closed on shutdown
         rospy.on_shutdown(self.shutdown_cb)
-        # rospy.spin()
 
-    def image_cb(self, msg):
-        # Directly write the raw Image message
-        if not self.active:
-            return
-        
-        with self.lock:
-            self.bag.write('/camera/color/image_raw', msg, msg.header.stamp)
-
-    def synced_callback(self, image_msg, odom_msg):
+    def synced_callback(self, image_msg, odom_msg, ang_vel_msg):
         with self.lock:
             self.bag.write('/camera/color/image_raw', image_msg, image_msg.header.stamp)
             self.bag.write('/car/odom', odom_msg, odom_msg.header.stamp)
-
-    def odom_cb(self, msg):
-        # Write Odometry with its header timestamp
-        if not self.active:
-            return
-        
-        with self.lock:
-            self.bag.write('/car/odom', msg, msg.header.stamp)
-
-    def imu_cb(self, msg):
-        # Write IMU
-        if not self.active:
-            return
-        
-        with self.lock:
-            self.bag.write('/camera/gyro/sample', msg, msg.header.stamp)
+            self.bag.write('/camera/gyro/sample', ang_vel_msg, ang_vel_msg.header.stamp)
 
     def shutdown_cb(self):
         # stop new callbacks
@@ -74,7 +42,7 @@ class RosbagRecorder:
         # unregister so ROS won’t queue any more
         self.img_sub.unregister()
         self.odom_sub.unregister()
-        self.imu_sub.unregister()
+        self.ang_vel_sub.unregister()
 
         # give any in‑flight callbacks a moment
         rospy.sleep(0.1)

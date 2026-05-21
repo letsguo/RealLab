@@ -1,0 +1,83 @@
+seed: 0
+debug: false
+temperature: 1.0
+opt_iters: 5
+u_per_command: 1
+cost_cfg:
+  class_type: mpail.cost:TDCost
+  single_step_class_cfg:
+    class_type: mpail.cost:GAIfOCost
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory
+    model_kwargs:
+      hidden_dims:
+      - 32
+      - 32
+      activation: lrelu
+      use_spectral_norm: true
+    clip_costs: null
+    state_dim: 16
+  terminal_state_class_cfg:
+    class_type: mpail.cost:CostToGo
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory
+    model_kwargs:
+      input_dim: 16
+      hidden_dims:
+      - 32
+      - 32
+      activation: relu
+    clip_costs: null
+  ss_coeff: 1.0
+  ts_coeff: 1.0
+  risk: 1.0101010101010102
+dynamics_cfg:
+  class_type: mpail.mppi.core.dynamics.car_dynamics:SimpleCarDynamicsNoAction
+  x_dim: 12
+  feat_dim: 4
+  concatenate_feats: true
+  wheelbase: 0.325
+  throttle_to_wheelspeed: 3.0
+  steering_max: 0.4
+  dt: 0.1
+sampling_cfg:
+  control_dim: 2
+  noise_0: 0.5
+  noise_1: 0.5
+  scaled_dt: 0.1
+  temperature: {}
+  max_dv: 2.0
+  max_dtheta: 2.0
+  max_thr: 1.0
+  min_thr: 0.0
+  num_rollouts: 512
+  num_timesteps: 10
+  class_type: mpail.mppi.core.sampling.delta_sampling:DeltaSampling
+map_cfg:
+  class_type: mpail.mppi.core.maps.bev_map:BEVMap
+  map_length_px: 20
+  map_res_m_px: 0.15789473684210525
+  feature_dim: 4
+  map_res_hitl: 0.25
+vis_cfg:
+  class_type: mpail.mppi.core.vis.rollout_vis:RolloutsVisualization
+  vis_rollouts: {}
+  vis_n_envs: 5
+  vis_n_rollouts: 5
+  xlim: !!python/tuple
+  - -2
+  - 12
+  ylim: !!python/tuple
+  - -2
+  - 12
+  show_velocity: false
+  show_elevation: false
+  cost_range: !!python/tuple
+  - -10
+  - 10
+  show_trajectory_trace: true
+action_dist: normal
+action_dist_params:
+  init_std: 1.0
+  min_std: 0.0001
+temp_lr: 0.01
+min_temp: 0.0001
+feat_dim: 4

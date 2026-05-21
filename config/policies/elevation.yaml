@@ -5,4 +5,4 @@ steering_max: 0.488 # max steering angle in radians
 rate: 20 # control frequency of the policy
 obs_type: "goal_based_elevation"  # the type of observation that must be passed in to the model
 hidden_shape: [128, 128] # shape of hidden layers
-goal: [4.0, 2.0, 0.0] # the goal destination of the elevation policy
+goal: [0.0, 0.0, 0.0] # the goal destination of the elevation policy

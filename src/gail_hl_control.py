@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import rospy
 import cv2
-
 import numpy as np
 from nav_msgs.msg import Odometry, Path as navPath
 from std_msgs.msg import Float32MultiArray
@@ -21,11 +20,11 @@ import torch
 from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from utils.generate_elevation_map import crop_heightmap
-#import ipdb
 
-class Hound_RLHL_Control:
-    def __init__(self, policy, data_collection, odom_topic, use_mocap=False):
-        with open(f"/root/catkin_ws/src/hound_core/config/policies/{policy}.yaml") as f:
+
+class GAIL_HL_Control:
+    def __init__(self, policy, odom_topic, use_mocap, data_collection):
+        with open(f"/root/catkin_ws/src/RealLab/config/policies/{policy}.yaml") as f:
             config_data = yaml.safe_load(f)
 
         self.throttle_to_wheelspeed = config_data["throttle_to_wheelspeed"]
@@ -40,33 +39,33 @@ class Hound_RLHL_Control:
         self.state_init = False
         self.imu = None
         self.odom_update = False
-        self.pose = torch.zeros(6)
-        self.twists = torch.zeros(6)
+        self.pose = torch.zeros(4)
+        self.twists = torch.zeros(3)
         self.start_action = False
         self.pad_latch = True
         self.use_mocap = use_mocap
 
         if self.obs_type == "relative":
-            self.state = np.zeros(12, dtype=np.float32)
+            self.state = np.zeros(7, dtype=np.float32)
             self.model = RLModel(model_path, 
                                  type=model_type,
-                                 acargs=(12,12,2),
+                                 acargs=(7,7,2),
                                  ackwargs={
                                    "actor_hidden_dims": hidden_shape,
                                    "critic_hidden_dims": hidden_shape
                                 })
             self.include_last_action = False
         elif self.obs_type == "blind":
-            self.state = np.zeros(14, dtype=np.float32)
+            self.state = np.zeros(7, dtype=np.float32)
             self.model = RLModel(model_path,
                                 type=model_type,
-                                acargs=(14,14,2),
+                                acargs=(7,7,2),
                                 ackwargs={
                                    "actor_hidden_dims": hidden_shape,
                                    "critic_hidden_dims": hidden_shape
                                 })
-            self.include_last_action = True
-            self.last_action_offset = 12
+            self.include_last_action = False
+            self.last_action_offset = 5 # TODO ask what this param do
         elif self.obs_type == "elevation":
             self.state = np.zeros(972, dtype=np.float32)
             self.model = RLModel(model_path,
@@ -135,9 +134,9 @@ class Hound_RLHL_Control:
             odom_topic, Odometry, self.odom_callback
         )
 
-        self.rc_sub = rospy.Subscriber('/car/teleop/joy', Joy, self.rcin_callback)
+        # self.rc_sub = rospy.Subscriber('/car/teleop/joy', Joy, self.rcin_callback)
 
-        self.imu_sub = rospy.Subscriber("/camera/gyro/sample", Imu, self.imu_callback)
+        # self.imu_sub = rospy.Subscriber("/camera/gyro/sample", Imu, self.imu_callback)
         # self.grid_map_sub = rospy.Subscriber(
         #     "/grid_map_occlusion_inpainting/all_grid_map",
         #     GridMap,
@@ -220,21 +219,23 @@ class Hound_RLHL_Control:
         control_msg.header.stamp = rospy.Time.now()
         control_msg.header.frame_id = "base_link"
         control_msg.drive.steering_angle = -(ctrl[1] * self.steering_max)
-        control_msg.drive.speed = 0.5 #if (ctrl[0] * self.throttle_to_wheelspeed) > 0 else 0
-        if not self.start_action:
-            control_msg.drive.speed = 0
-        if self.include_last_action:
-            if self.start_action:
-                self.state[self.last_action_offset] = ctrl[0]
-                self.state[self.last_action_offset + 1] = ctrl[1]
-            else:
-                self.state[self.last_action_offset] = 0.0
-                self.state[self.last_action_offset + 1] = 0.0
+        # control_msg.drive.speed = 0.5 #if (ctrl[0] * self.throttle_to_wheelspeed) > 0 else 0
+        control_msg.drive.speed = control_msg.drive.speed = max(0.0, ctrl[0] * self.throttle_to_wheelspeed)
+
+        # if not self.start_action:
+        #     control_msg.drive.speed = 0
+        # if self.include_last_action:
+        #     if self.start_action:
+        #         self.state[self.last_action_offset] = ctrl[0]
+        #         self.state[self.last_action_offset + 1] = ctrl[1]
+        #     else:
+        #         self.state[self.last_action_offset] = 0.0
+        #         self.state[self.last_action_offset + 1] = 0.0
         self.control_pub.publish(control_msg)
 
     def obtain_state(self, odom):
         ## obtain the state from the odometry and imu messages:
-        new_pose = torch.zeros(6)
+        new_pose = torch.zeros(4)
         quaternion = (
             odom.pose.pose.orientation.x,
             odom.pose.pose.orientation.y,
@@ -247,9 +248,10 @@ class Hound_RLHL_Control:
         new_pose[1] = odom.pose.pose.position.y
         new_pose[2] = odom.pose.pose.position.z
 
-        new_pose[3] = (rpy[0] + 2*np.pi) % (2*np.pi)
-        new_pose[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
-        new_pose[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
+        new_pose[3] = (rpy[2] + 2*np.pi) % (2*np.pi)
+        # new_pose[3] = (rpy[0] + 2*np.pi) % (2*np.pi)
+        # new_pose[4] = (rpy[1] + 2*np.pi) % (2*np.pi)
+        # new_pose[5] = (rpy[2] + 2*np.pi) % (2*np.pi)
 
         self.pose = new_pose
 
@@ -257,9 +259,9 @@ class Hound_RLHL_Control:
         self.twists[1] = odom.twist.twist.linear.y
         self.twists[2] = odom.twist.twist.linear.z
         # lazy fix for wierd camera reference frame
-        self.twists[3] = self.imu.angular_velocity.z
-        self.twists[4] = - self.imu.angular_velocity.x
-        self.twists[5] = - self.imu.angular_velocity.y
+        # self.twists[3] = self.imu.angular_velocity.z
+        # self.twists[4] = - self.imu.angular_velocity.x
+        # self.twists[5] = - self.imu.angular_velocity.y
 
         if self.obs_type == "relative":
             self.obtain_relative_state(odom)
@@ -275,8 +277,9 @@ class Hound_RLHL_Control:
             ValueError("must choose valid obs type")
 
     def obtain_blind_state(self, odom):
-        self.state[:6] = self.pose.numpy()
-        self.state[6:12] = self.twists.numpy()
+        self.state[:3] = self.pose.numpy()[0:3]
+        self.state[3:6] = self.twists.numpy()
+        self.state[-1] = self.pose.numpy()[-1]
 
     def obtain_relative_state(self, odom):
         self.state[:6] = self.pos_angle(self.pose).numpy()
@@ -346,8 +349,8 @@ class Hound_RLHL_Control:
         self.image = (flattened_image - 0.5) / 0.5
 
     def odom_callback(self, odom):
-        if self.imu is None:
-            return
+        # if self.imu is None:
+        #     return
         self.obtain_state(odom)
         if not self.state_init:
             self.state_init = True
@@ -377,8 +380,11 @@ class Hound_RLHL_Control:
 if __name__ == "__main__":
     rospy.init_node("hl_controller")
     policy = rospy.get_param("~policy")
-    data_collection = rospy.get_param("~data_collection")
-    odom_topic = rospy.get_param("~odom")
-    use_mocap = rospy.get_param("~use_mocap")
-    planner = Hound_RLHL_Control(policy, data_collection, odom_topic, use_mocap)
+    # data_collection = rospy.get_param("~data_collection")
+    # odom_topic = rospy.get_param("~odom")
+    # use_mocap = rospy.get_param("~use_mocap")
+    data_collection = True
+    odom_topic = "/mocap/local_position/odom"
+    use_mocap = False
+    planner = GAIL_HL_Control(policy, odom_topic, use_mocap, data_collection)
     rospy.spin()

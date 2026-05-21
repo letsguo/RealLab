@@ -30,10 +30,12 @@ class Teleop:
         # Throttle: invert Y-axis so pushing forward is positive
         throttle_input = msg.axes[self.throttle_axis]
         drive.speed = throttle_input * self.max_speed
-
         # Steering: right stick X-axis
         steer_input = msg.axes[self.steering_axis]
         drive.steering_angle = -steer_input * self.max_steering_angle
+
+        # rospy.loginfo(f"Throttle input: {throttle_input:.3f}, Steering input: {steer_input:.3f}")
+
 
         self.pub.publish(drive_msg)
 
