@@ -1,72 +1,82 @@
 <launch>
-    <arg name="visualize" default="true" />
-    <arg name="data" default="false" />
-    <arg name="robot_name" default="hound_vio" />
-    <arg name="moving_object" default="hound2" />
-    <arg name="policy" default="drift" />
-    <!-- <arg name="policy" default="gail" /> -->
+    <arg name="visualize" default="true" />   
+    <arg name="data" default="false" /> 
+    <arg name="robot_name" default="hound_vio" />  <!-- [INFRA] mocap asset name for the odom + obstacle-pose includes -->
+    <arg name="record_viz" default="true" />       <!-- [VIZ] enables the mppi_visualizer node -->
     <arg name="mocap" default="true" />
-    <arg name="odom_topic" value="$(eval '/mavros/local_position/odom' if '$(arg mocap)'=='true' else '/car/vesc/odom')"/>
+    <arg name="video_name" default="test.mp4" />   <!-- [VIZ] mppi_visualizer output mp4 filename (saved in rollout_vis/) -->
+    <arg name="bag_name" default="small_u.bag" />  <!-- [DATA] expert_recorder rosbag filename (saved in dbf_expert_demonstrations/) -->
     
     <group if="$(arg mocap)">
-        <!-- Robot pose -> /mocap/local_position/odom -->
+        <!-- [INFRA] mocap drivers that PROVIDE the planner's inputs (odom + obstacle poses) -->
+        <!-- [INFRA] Robot pose -> /mocap/local_position/odom -->
         <include file="$(find mushr_mocap)/launch/car_odom_publisher.launch">
             <arg name="asset_name" value="$(arg robot_name)" />
         </include>
-        <!-- Obstacle poses -> /mocap/obstacle_*/pose -->
+        <!-- [PLANNER] map source: obstacle poses -> /mocap/obstacle_*/pose -->
         <include file="$(find dbf)/launch/object_pose_publisher.launch">
             <arg name="asset_name" value="$(arg robot_name)" />
         </include>
-    </group>        
+    </group>
 
-    <include file="$(find dbf)/launch/realsense_d455_HOUND.launch"/>
-    <include file="$(find mushr_base)/launch/teleop.launch"/>
+    <include file="$(find dbf)/launch/realsense_d455_HOUND.launch"/> <!-- mpail doesnt use camera rn-->
+    <include file="$(find mushr_base)/launch/teleop.launch"/>        <!-- start manual control node -->
 
-    <arg name="low_level_Config" default="$(find dbf)/config/low_level_Config_real.yaml" />
+    <arg name="low_level_Config" default="$(find dbf)/config/low_level_Config_real.yaml" /> 
     <rosparam file="$(arg low_level_Config)" command="load" />
     
     <!-- <node pkg="timed_roslaunch" type="timed_roslaunch.sh" args="15 elevation_mapping_cupy elevation_mapping_cupy_no_vis.launch" name="elevation_mapping" output="log"/>
     <include file="$(find ntrip_ros)/launch/ntripclient.launch"/>  -->
 
+    <!-- GAIL comparison controller. Ensure Mapping featuers match MPAIL controller -->
     <!-- <node pkg="dbf" type="gail_hl_control.py" name="high_level_controller" output="screen">
-        <param name="policy" value="$(arg policy)" />
+        <param name="policy" value="mocap_occupancy"/>
+        <param name="map_length_px" value="30"/>
+        <param name="map_res_m_px" value="0.1"/>
+        <param name="feature_dim" value="4"/>
+        <param name="obstacle_side_m" value="0.14"/>
+        <param name="obstacle_safety_padding_m" value="0.07"/>
     </node> -->
 
-    <!-- <node pkg="dbf" type="gail_hl_control.py" name="high_level_controller" output="screen">
-        <param name="policy" value="$(arg policy)" />
-        <param name="data_collection" value="$(arg data)" /> 
-        <param name="odom" value="$(arg odom_topic)"/> 
-        <param name="use_mocap" value="$(arg mocap)"/>
-    </node> -->
-   
     <group if ="$(arg data)">
         <!-- <node pkg="dbf" type="data_collector.py" name="data_collector" output="screen"/> -->
-        <node pkg="dbf" type="img_recorder.py" name="img_recorder" output="screen"/>
+        <node pkg="dbf" type="img_recorder.py" name="img_recorder" output="screen"/> 
     </group>
     
     <!-- <node pkg="dbf" type="teleop.py" name="teleop" output="screen"/> -->
     <!-- <node pkg="dbf" type="irl_mpc_control.py" name="high_level_controller" output="screen"/> -->
     <!-- <node pkg="dbf" type="rl_hl_control.py" name="high_level_controller" output="screen"> -->
     <node pkg="dbf" type="mpail_hl_control.py" name="high_level_controller" output="screen">
-        <param name="policy" value="$(arg policy)" />
-        <param name="data_collection" value="$(arg data)" /> 
-        <param name="odom" value="$(arg odom_topic)"/> 
-        <param name="use_mocap" value="$(arg mocap)"/>
-        <param name="record_rollout_video" value="true"/>
-        <param name="rollout_vis_dir" value="$(find dbf)/rollout_vis"/>
-        <param name="video_fps" value="10"/>
+        <!-- NOTE: Match GAIL controller values. Policy and other in DBF config in  DBF_MPAIL_2D_policy_config -->
+        <param name="obstacle_side_m" value="0.14"/>           
+        <param name="obstacle_safety_padding_m" value="0.07"/>   
     </node>
 
-    <!-- comment the line below if you want to record data into rosbag-->
-        <!-- <node pkg="dbf" type="expert_recorder_odom.py" name="recorder" output="screen">
-            <param name="bag_file" value="$(env HOME)/catkin_ws/src/RealLab/dbf_expert_demonstrations/expert_complete_left.bag" />
-        </node> -->
+    <!-- MPPI visualizer, decoupled from controller -->
+    <node if="$(arg record_viz)" pkg="dbf" type="run_mppi_visualizer.sh" name="mppi_visualizer" output="screen">
+        <!-- [VIZ] every param in this node is drawing/recording only-->
+        <param name="record_video" value="true"/>
+        <param name="save_frames" value="false"/>
+        <param name="video_fps" value="15"/>
+        <param name="output_dir" value="$(find dbf)/rollout_vis/"/>
+        <param name="output_filename" value="$(arg video_name)"/> <!-- set on CLI: video_name:=myrun.mp4 (avoid overwriting) -->
+        <param name="vis_n_rollouts" value="10"/>
+        <param name="rollout_occupancy_idx" value="12"/>
+        <rosparam param="xlim">[-2, 2]</rosparam>
+        <rosparam param="ylim">[-8, -2]</rosparam>
 
-    <!-- OLD MPPI-->
-    <!-- <node pkg="dbf" type="mppi_hl_control.py" name="high_level_controller" output="screen"/> -->
+        <!-- make sure these match the hl controller's config for alignment.-->
+        <param name="map_length_px" value="30"/>
+        <param name="map_res_m_px" value="0.1"/>
+        <param name="obstacle_side_m" value="0.14"/>
+    </node>
 
+    <!-- always-on rosbag recorder. comment the line below if you DONT* want to record data into rosbag-->
+    <node pkg="dbf" type="expert_recorder_odom.py" name="recorder" output="screen">
+        <param name="bag_file" value="$(find dbf)/dbf_expert_demonstrations/$(arg bag_name)" /> <!-- [DATA] set on CLI: bag_name:=myrun.bag -->
+    </node>
 
-    <!-- Group of nodes launched only if visualize is true -->
+    <!-- Group of nodes launched only if visualize is true (RViz republishers) -->
     <group if="$(arg visualize)">
         <node pkg="dbf" type="state_spliter.py" name="state_splitter" output="screen" />
         <node pkg="hound_core" type="pose_republisher.py" name="pose_republisher" output="screen" /> 

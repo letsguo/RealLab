@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import rospy
 import rosbag
 from sensor_msgs.msg import Image, Imu
@@ -8,6 +9,7 @@ import message_filters
 
 class RosbagRecorder:
     def __init__(self, bag_path):
+        os.makedirs(os.path.dirname(os.path.abspath(bag_path)), exist_ok=True)
         self.bag = rosbag.Bag(bag_path, 'w')
         # self.odom_topic = odom_topic
 
@@ -42,6 +44,7 @@ class RosbagRecorder:
 
 class MocapRecorder:
     def __init__(self, bag_path):
+        os.makedirs(os.path.dirname(os.path.abspath(bag_path)), exist_ok=True)
         self.bag = rosbag.Bag(bag_path, 'w')
         # self.odom_topic = odom_topic
 

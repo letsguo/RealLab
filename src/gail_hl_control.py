@@ -7,7 +7,8 @@ from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import Imu, Image, Joy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from utils.rl_policy import RLModel
-from utils.waypoints import Waypoints
+# DEAD: waypoint/pos_angle (relative obs) path is unused -- no config selects "relative"
+# from utils.waypoints import Waypoints
 from visualization_msgs.msg import Marker, MarkerArray
 from ackermann_msgs.msg import AckermannDriveStamped
 from tf.transformations import euler_from_quaternion
@@ -20,6 +21,12 @@ import torch
 from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from utils.generate_elevation_map import crop_heightmap
+# Shared mocap occupancy builders (same ones mpail_hl_control feeds its MPPI planner)
+from utils.mocap_obstacle_map import (
+    build_obstacle_occupancy_map,
+    collect_obstacle_positions,
+    occupancy_to_policy_map,
+)
 
 
 class GAIL_HL_Control:
@@ -45,17 +52,18 @@ class GAIL_HL_Control:
         self.pad_latch = True
         self.use_mocap = use_mocap
 
-        if self.obs_type == "relative":
-            self.state = np.zeros(7, dtype=np.float32)
-            self.model = RLModel(model_path, 
-                                 type=model_type,
-                                 acargs=(7,7,2),
-                                 ackwargs={
-                                   "actor_hidden_dims": hidden_shape,
-                                   "critic_hidden_dims": hidden_shape
-                                })
-            self.include_last_action = False
-        elif self.obs_type == "blind":
+        # DEAD: relative/waypoint observation mode unused (no config selects "relative")
+        # if self.obs_type == "relative":
+        #     self.state = np.zeros(7, dtype=np.float32)
+        #     self.model = RLModel(model_path,
+        #                          type=model_type,
+        #                          acargs=(7,7,2),
+        #                          ackwargs={
+        #                            "actor_hidden_dims": hidden_shape,
+        #                            "critic_hidden_dims": hidden_shape
+        #                         })
+        #     self.include_last_action = False
+        if self.obs_type == "blind":
             self.state = np.zeros(7, dtype=np.float32)
             self.model = RLModel(model_path,
                                 type=model_type,
@@ -118,6 +126,53 @@ class GAIL_HL_Control:
             self.last_action_offset = 40 * 80 + 6
             self.image_sub = rospy.Subscriber("/camera/color/image_raw", Image, self.image_callback, callback_args={"resize_shape": self.resize_shape})
             self.threshold = config_data["threshold"]
+        elif self.obs_type == "mocap_occupancy":
+            # Unified observation matching mpail_hl_control: 12-dim proprioception
+            # (pose + twists) followed by the FLATTENED mocap occupancy policy_map,
+            # built with the same utils MPAIL feeds its MPPI planner.
+            self.map_obs_offset = 12
+            # Map geometry as ROS params (defaults match the launch / MPAIL map_cfg).
+            self.map_length_px = int(rospy.get_param("~map_length_px", 30))
+            self.map_res_m_px = float(rospy.get_param("~map_res_m_px", 0.1))
+            self.feature_dim = int(rospy.get_param("~feature_dim", 4))
+            obstacle_side_m = float(rospy.get_param("~obstacle_side_m", 0.14))
+            self.obstacle_safety_padding_m = float(
+                rospy.get_param("~obstacle_safety_padding_m", 0.07)
+            )
+            self.obstacle_half_extent_m = (
+                obstacle_side_m / 2.0 + self.obstacle_safety_padding_m
+            )
+            self.tracked_obstacles = rospy.get_param(
+                "~tracked_obstacles",
+                [
+                    "obstacle_1", "obstacle_2", "obstacle_3", "obstacle_4",
+                    "obstacle_5", "obstacle_6", "obstacle_7",
+                ],
+            )
+            map_dim = self.map_length_px * self.map_length_px * self.feature_dim
+            obs_dim = self.map_obs_offset + map_dim
+            self.state = np.zeros(obs_dim, dtype=np.float32)
+            self.model = RLModel(model_path,
+                                type=model_type,
+                                acargs=(obs_dim, obs_dim, 2),
+                                ackwargs={
+                                   "actor_hidden_dims": hidden_shape,
+                                   "critic_hidden_dims": hidden_shape
+                                })
+            self.include_last_action = False
+            # 6-DOF pose + 6-dim twists, matching MPAIL_HL_Control's state layout.
+            self.pose = torch.zeros(6)
+            self.twists = torch.zeros(6)
+            self.obstacle_poses = {name: None for name in self.tracked_obstacles}
+            self.obstacle_map_ready = False
+            for obj in self.tracked_obstacles:
+                rospy.Subscriber(
+                    f"/mocap/{obj}/pose",
+                    PoseStamped,
+                    self.obstacle_pose_callback,
+                    callback_args=obj,
+                    queue_size=1,
+                )
         else:
             ValueError("must choose valid obs type")
 
@@ -126,8 +181,9 @@ class GAIL_HL_Control:
         if data_collection:
             self.value_pub = rospy.Publisher("value", Float32MultiArray, queue_size=1)
 
-        waypoints = Waypoints()
-        waypoints.generate_waypoints()
+        # DEAD: waypoints only feed the unused pos_angle/relative path
+        # waypoints = Waypoints()
+        # waypoints.generate_waypoints()
         print("\n1\n")
         # initialize the odometry and imu subscribers with callbacks
         self.odom_sub = rospy.Subscriber(
@@ -263,9 +319,10 @@ class GAIL_HL_Control:
         # self.twists[4] = - self.imu.angular_velocity.x
         # self.twists[5] = - self.imu.angular_velocity.y
 
-        if self.obs_type == "relative":
-            self.obtain_relative_state(odom)
-        elif self.obs_type == "blind":
+        # DEAD: relative/waypoint observation path unused (no config selects "relative")
+        # if self.obs_type == "relative":
+        #     self.obtain_relative_state(odom)
+        if self.obs_type == "blind":
             self.obtain_blind_state(odom)
         elif self.obs_type == "elevation":
             self.obtain_elevation_state(odom)
@@ -273,6 +330,8 @@ class GAIL_HL_Control:
             self.obtain_goal_based_elevation_state(odom)
         elif self.obs_type == "rgb":
             self.obtain_rgb_state(odom)
+        elif self.obs_type == "mocap_occupancy":
+            self.obtain_mocap_occupancy_state(odom)
         else:
             ValueError("must choose valid obs type")
 
@@ -281,9 +340,87 @@ class GAIL_HL_Control:
         self.state[3:6] = self.twists.numpy()
         self.state[-1] = self.pose.numpy()[-1]
 
-    def obtain_relative_state(self, odom):
-        self.state[:6] = self.pos_angle(self.pose).numpy()
+    # DEAD: relative/waypoint observation path unused (no config selects "relative")
+    # def obtain_relative_state(self, odom):
+    #     self.state[:6] = self.pos_angle(self.pose).numpy()
+    #     self.state[6:12] = self.twists.numpy()
+
+    def obstacle_pose_callback(self, msg, obj_name):
+        # Mirrors MPAIL_HL_Control.obstacle_pose_callback: cache latest (x, y).
+        self.obstacle_poses[obj_name] = np.array(
+            [msg.pose.position.x, msg.pose.position.y], dtype=np.float64
+        )
+        self.obstacle_map_ready = collect_obstacle_positions(
+            self.obstacle_poses, self.tracked_obstacles
+        ) is not None
+
+    def obtain_mocap_occupancy_state(self, odom):
+        """Unified observation matching mpail_hl_control. Mirrors MPAIL's
+        obtain_state + obtain_blind_state (12-dim proprioception), then flattens
+        build_policy_map() into the observation tail (the same mocap map MPAIL feeds
+        its MPPI planner as a 2-D grid)."""
+        # --- Mirror MPAIL_HL_Control.obtain_state: full 6-DOF pose + 6-dim twists. ---
+        new_pose = torch.zeros(6)
+        quaternion = (
+            odom.pose.pose.orientation.x,
+            odom.pose.pose.orientation.y,
+            odom.pose.pose.orientation.z,
+            odom.pose.pose.orientation.w,
+        )
+        rpy = euler_from_quaternion(quaternion)
+        new_pose[0] = odom.pose.pose.position.x
+        new_pose[1] = odom.pose.pose.position.y
+        new_pose[2] = odom.pose.pose.position.z
+        new_pose[3] = (rpy[0] + 2 * np.pi) % (2 * np.pi)   # roll
+        new_pose[4] = (rpy[1] + 2 * np.pi) % (2 * np.pi)   # pitch
+        new_pose[5] = (rpy[2] + 2 * np.pi) % (2 * np.pi)   # yaw
+        self.pose = new_pose
+        self.twists[0] = odom.twist.twist.linear.x
+        self.twists[1] = odom.twist.twist.linear.y
+        self.twists[2] = odom.twist.twist.linear.z
+        # angular velocities left at 0, as in MPAIL (imu terms disabled)
+
+        # --- Mirror MPAIL_HL_Control.obtain_blind_state: proprioception in dims 0:12. ---
+        self.state[:6] = self.pose.numpy()
         self.state[6:12] = self.twists.numpy()
+
+        # --- Mirror MPAIL main_loop: build the mocap policy_map, flatten it in. ---
+        policy_map = self.build_policy_map()
+        if policy_map is not None:
+            self.state[self.map_obs_offset:] = policy_map.reshape(-1).numpy()
+            self.obstacle_map_ready = True
+        else:
+            # Not all obstacle poses seen yet: keep the map region as zeros (free).
+            self.obstacle_map_ready = False
+            rospy.logwarn_throttle(
+                2.0,
+                "mocap_occupancy: waiting for all obstacle poses; map left empty.",
+            )
+
+    def build_policy_map(self):
+        """Robot-centric occupancy from mocap. Mirrors MPAIL_HL_Control.build_policy_map.
+
+        Differences from MPAIL: geometry comes from ROS params (self.map_length_px,
+        self.map_res_m_px, self.feature_dim) instead of mpail_config.map_cfg, and the
+        tensor is left on CPU because GAIL flattens it into its 1-D observation rather
+        than feeding a GPU BEVMap. Returns None until every tracked obstacle pose has
+        been received.
+        """
+        obstacle_xy = collect_obstacle_positions(
+            self.obstacle_poses, self.tracked_obstacles
+        )
+        if obstacle_xy is None:
+            return None
+        occupancy = build_obstacle_occupancy_map(
+            robot_xy=self.pose[:2].numpy(),
+            robot_yaw=float(self.pose[5]),
+            obstacle_xy=obstacle_xy,
+            map_length_px=self.map_length_px,
+            map_res_m_px=self.map_res_m_px,
+            obstacle_half_extent_m=self.obstacle_half_extent_m,
+        )
+        policy_map = occupancy_to_policy_map(occupancy, self.feature_dim)
+        return policy_map.unsqueeze(0)
 
     def get_local_elevation_map(self, x, y, yaw, width=20):
         if self.use_mocap:
@@ -365,16 +502,17 @@ class GAIL_HL_Control:
     def local_heightmap_callback(self, msg):
         self.local_heightmap = np.array(msg.data).reshape(self.local_heightmap.shape)
 
-    def pos_angle(self, pos):
-        waypoints = Waypoints().waypoints
-        waypoints = waypoints.to(pos.device)
-        distances = torch.norm(waypoints - pos[:3], dim=-1)
-        closest_index = torch.argmin(distances)
-        goal_index = (closest_index+1)%len(waypoints)
-        goal_waypoint = waypoints[goal_index.unsqueeze(0)].squeeze(0)
-        goal_angle = torch.atan2(goal_waypoint[1] - pos[1], goal_waypoint[0] - pos[0])
-        goal_euler = torch.cat([torch.zeros(2, device=pos.device), goal_angle.unsqueeze(0)])
-        return torch.cat([goal_waypoint, goal_euler]) - pos
+    # DEAD: waypoint goal-relative transform; only called by the unused obtain_relative_state
+    # def pos_angle(self, pos):
+    #     waypoints = Waypoints().waypoints
+    #     waypoints = waypoints.to(pos.device)
+    #     distances = torch.norm(waypoints - pos[:3], dim=-1)
+    #     closest_index = torch.argmin(distances)
+    #     goal_index = (closest_index+1)%len(waypoints)
+    #     goal_waypoint = waypoints[goal_index.unsqueeze(0)].squeeze(0)
+    #     goal_angle = torch.atan2(goal_waypoint[1] - pos[1], goal_waypoint[0] - pos[0])
+    #     goal_euler = torch.cat([torch.zeros(2, device=pos.device), goal_angle.unsqueeze(0)])
+    #     return torch.cat([goal_waypoint, goal_euler]) - pos
 
 
 if __name__ == "__main__":

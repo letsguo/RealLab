@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
+
 import rospy
-import cv2
 import numpy as np
 import torch
+import types
 from configs import MPPIConfig
 from mppi import mppi
 from mpail import mpail_cfg
@@ -27,7 +28,8 @@ from tf.transformations import euler_from_quaternion
 import time
 import math
 
-from utils.waypoints import Waypoints
+# DEAD: waypoint/pos_angle (relative obs) path is unused -- obs_type is always "blind"
+# from utils.waypoints import Waypoints
 from utils.mocap_obstacle_map import (
     build_obstacle_occupancy_map,
     collect_obstacle_positions,
@@ -46,10 +48,6 @@ from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from utils.generate_elevation_map import crop_heightmap
 import ipdb
-import atexit
-from io import BytesIO
-
-import imageio
 
 class MPAIL_HL_Control:
     def __init__(self, mpail_config: MPAILPolicyConfig, policy_model):
@@ -65,7 +63,6 @@ class MPAIL_HL_Control:
 
         self.device = torch.device("cuda")
         self.mpail_controller = MPAILPolicy(self.mpail_config, self.num_envs, self.device)
-
         # model_state_dict keys are MPAILPolicy-prefixed (costs.*, _temp_exp), not TDCost-local
         missing, unexpected = self.mpail_controller.load_state_dict(policy_model, strict=False)
         if missing:
@@ -73,6 +70,8 @@ class MPAIL_HL_Control:
         if unexpected:
             rospy.logwarn(f"Policy checkpoint unexpected keys: {unexpected}")
         rospy.loginfo("Policy model loaded successfully.")
+        
+        self.mpail_controller = self.inject_eval_collision_absorbing_cost(self.mpail_controller)
 
         self.state_init = False
         self.imu = None
@@ -95,6 +94,11 @@ class MPAIL_HL_Control:
         self.state = np.zeros(12, dtype=np.float32)
 
         # map
+        # NOTE: this camera/depth -> BEV path is currently UNUSED. The policy map is
+        # built from mocap obstacle poses (see build_policy_map); nothing reads
+        # latest_rgb/latest_depth/rgb_history, and camera_update/depth_update gate
+        # nothing in main_loop. Kept for a future vision-based exteroception source.
+        # TODO: remove if mocap occupancy stays the only map source.
         self.bridge = CvBridge()
         self.camera_sub = rospy.Subscriber('/car/car/camera/color/image_raw', Image, self.camera_callback)
         self.depth_sub = rospy.Subscriber('/car/car/camera/depth/image_rect_raw', Image, self.depth_callback)
@@ -116,8 +120,8 @@ class MPAIL_HL_Control:
             ],
         )
         # VRPN/mocap gives pose only; set side length [m] to match Isaac spawn.size[0]
-        obstacle_side_m = rospy.get_param("~obstacle_side_m", 1.6)
-        self.obstacle_safety_padding_m = rospy.get_param("~obstacle_safety_padding_m", 1.0)
+        obstacle_side_m = rospy.get_param("~obstacle_side_m", .14)
+        self.obstacle_safety_padding_m = rospy.get_param("~obstacle_safety_padding_m", 0.3)
         self.obstacle_half_extent_m = obstacle_side_m / 2.0 + self.obstacle_safety_padding_m
         self.obstacle_poses = {name: None for name in self.tracked_obstacles}
         self.obstacle_map_ready = False
@@ -130,6 +134,7 @@ class MPAIL_HL_Control:
                 queue_size=1,
             )
 
+        # UNUSED: constructed but never queried; map comes from mocap (build_policy_map).
         self.rgb_history = RGBBEVHistory(
             rgb_size=(720, 1280),
             rgb_K=torch.tensor([[635.9487, 0.0, 634.8170],
@@ -178,29 +183,8 @@ class MPAIL_HL_Control:
 
         self.publish_viz = True
         self.vis_timestep = 0
-        self.record_rollout_video = rospy.get_param("~record_rollout_video", True)
-        self.rollout_vis_dir = os.path.abspath(
-            rospy.get_param(
-                "~rollout_vis_dir",
-                os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    "rollout_vis",
-                ),
-            )
-        )
-        self.video_fps = int(rospy.get_param("~video_fps", 10))
-        self._video_frames = []
-        self._video_saved = False
-        os.makedirs(self.rollout_vis_dir, exist_ok=True)
         if self.publish_viz:
             rospy.loginfo("visualization in effect")
-            rospy.loginfo(
-                "rollout video: record=%s dir=%s",
-                self.record_rollout_video,
-                self.rollout_vis_dir,
-            )
-            rospy.on_shutdown(self._save_rollout_video)
-            atexit.register(self._save_rollout_video)
 
             self.current_state_pub = rospy.Publisher("/mppi/current_state", Float32MultiArray, queue_size=1)
             self.rollouts_pub      = rospy.Publisher("/mppi/rollouts", Float32MultiArray, queue_size=1)
@@ -273,23 +257,6 @@ class MPAIL_HL_Control:
                 self.camera_update = False
                 self.depth_update = False
             rate.sleep()
-
-    def get_visual_feature_from_obs(self) -> torch.Tensor:
-        """Get the terrain visual feature from the camera.
-        bevmap_resolution: the resolution of the BEV map in meters
-        """
-        # # we need the rgb value corresponding to the robtot position
-        agent_pos_t = torch.from_numpy(self.state[:3].copy())
-        agent_quat = torch.from_numpy(self.state[3:7].copy())
-
-        agent_pose = RGBBEVHistory.make_pose(agent_pos_t, agent_quat)
-
-        camera = self.latest_rgb.unsqueeze(0)  # (B, H, W, C)
-        depth = self.latest_depth.unsqueeze(0)  # (B, H, W, 1)
-        updated_map = self.rgb_history.update_bev(camera, depth, agent_pose)
-
-        return updated_map
-
     
     def create_multidimensional_array_msg(self, data_array, dims_sizes, dims_names):
         """Create a Float32MultiArray message with dimension information"""
@@ -392,69 +359,6 @@ class MPAIL_HL_Control:
         self.vis_timestep += 1
         self.timestep.publish(self.vis_timestep)
 
-        if self.record_rollout_video and getattr(self.mpail_controller, "vis", None):
-            try:
-                self.mpail_controller.create_vis(obstacle_pose=obstacle_pose_arg)
-                self._capture_rollout_frame()
-            except Exception as exc:
-                rospy.logwarn_throttle(5.0, f"Rollout video frame capture failed: {exc}")
-
-    def _capture_rollout_frame(self):
-        vis = self.mpail_controller.vis
-        vis.fig.canvas.draw()
-        buf = BytesIO()
-        vis.fig.savefig(buf, format="png", dpi=100)
-        buf.seek(0)
-        self._video_frames.append(imageio.imread(buf))
-        buf.close()
-        if self.vis_timestep == 1 or self.vis_timestep % 50 == 0:
-            rospy.loginfo(
-                "Captured rollout frame %d (%d total)",
-                self.vis_timestep,
-                len(self._video_frames),
-            )
-
-    def _write_rollout_video_cv2(self, path):
-        if not self._video_frames:
-            return False
-        frame0 = self._video_frames[0]
-        h, w = frame0.shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(path, fourcc, self.video_fps, (w, h))
-        if not writer.isOpened():
-            return False
-        for frame in self._video_frames:
-            if frame.shape[0] != h or frame.shape[1] != w:
-                frame = cv2.resize(frame, (w, h))
-            if frame.ndim == 2:
-                frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-            elif frame.shape[2] == 4:
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
-            else:
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            writer.write(frame)
-        writer.release()
-        return os.path.isfile(path) and os.path.getsize(path) > 0
-
-    def _save_rollout_video(self):
-        if self._video_saved or not self.record_rollout_video or not self._video_frames:
-            return
-        self._video_saved = True
-        path = os.path.join(self.rollout_vis_dir, "rollouts_video.mp4")
-        n_frames = len(self._video_frames)
-        if self._write_rollout_video_cv2(path):
-            rospy.loginfo("Saved rollout video (%d frames): %s", n_frames, path)
-            print(f"Saved rollout video ({n_frames} frames): {path}")
-            return
-        gif_path = os.path.join(self.rollout_vis_dir, "rollouts_video.gif")
-        try:
-            imageio.mimsave(gif_path, self._video_frames, fps=self.video_fps)
-            rospy.logwarn("MP4 write failed; saved GIF: %s", gif_path)
-            print(f"Saved rollout GIF ({n_frames} frames): {gif_path}")
-        except Exception as exc:
-            rospy.logwarn("Failed to save rollout video (%d frames): %s", n_frames, exc)
-            print(f"Failed to save rollout video: {exc}")
-
     def send_ctrl(self, ctrl):
         control_msg = AckermannDriveStamped()
         control_msg.header.stamp = rospy.Time.now()
@@ -522,32 +426,22 @@ class MPAIL_HL_Control:
         # self.twists[4] = self.imu.angular_velocity.y
         # self.twists[5] = self.imu.angular_velocity.z
 
-        if self.obs_type == "relative":
-            self.obtain_relative_state(odom)
-        elif self.obs_type == "blind":
+        # DEAD: relative/waypoint observation path unused (obs_type is always "blind")
+        # if self.obs_type == "relative":
+        #     self.obtain_relative_state(odom)
+        if self.obs_type == "blind":
             self.obtain_blind_state(odom)
-        # elif self.obs_type == "elevation":
-        #     self.obtain_elevation_state(odom)
-        # elif self.obs_type == "goal_based_elevation":
-        #     self.obtain_goal_based_elevation_state(odom)
-        # elif self.obs_type == "rgb":
-        #     self.obtain_rgb_state(odom)
-        # else:
-        #     ValueError("must choose valid obs type")
-
-    # def obtain_blind_state(self, odom):
-    #     self.state[:6] = self.pose.numpy()
-    #     self.state[6:12] = self.twists.numpy()
 
     def obtain_blind_state(self, odom):
         self.state[:6] = self.pose.numpy()
         self.state[6:12] = self.twists.numpy()
 
-    def obtain_relative_state(self, odom):
-        print("obtaining relative pose", self.pose)
-        self.state[:6] = self.pos_angle(self.pose).numpy()
-        print("obtaining relative state", self.state[:6])
-        self.state[6:12] = self.twists.numpy()
+    # DEAD: relative/waypoint observation path unused (obs_type is always "blind")
+    # def obtain_relative_state(self, odom):
+    #     print("obtaining relative pose", self.pose)
+    #     self.state[:6] = self.pos_angle(self.pose).numpy()
+    #     print("obtaining relative state", self.state[:6])
+    #     self.state[6:12] = self.twists.numpy()
 
     def odom_callback(self, odom):
         # rospy.loginfo("Got odom, imu=%s", self.imu is not None)
@@ -567,6 +461,8 @@ class MPAIL_HL_Control:
         except Exception as e:
             pass
 
+    # UNUSED: latest_rgb/latest_depth and the *_update flags are written here but
+    # never consumed (policy map comes from mocap). See note in __init__.
     def camera_callback(self, msg):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
@@ -619,16 +515,58 @@ class MPAIL_HL_Control:
         policy_map = occupancy_to_policy_map(occupancy, map_cfg.feature_dim)
         return policy_map.unsqueeze(0).to(device=self.device, dtype=torch.float32)
 
-    def pos_angle(self, pos):
-        waypoints = Waypoints().waypoints
-        waypoints = waypoints.to(pos.device)
-        distances = torch.norm(waypoints - pos[:3], dim=-1)
-        closest_index = torch.argmin(distances)
-        goal_index = (closest_index+1)%len(waypoints)
-        goal_waypoint = waypoints[goal_index.unsqueeze(0)].squeeze(0)
-        goal_angle = torch.atan2(goal_waypoint[1] - pos[1], goal_waypoint[0] - pos[0])
-        goal_euler = torch.cat([torch.zeros(2, device=pos.device), goal_angle.unsqueeze(0)])
-        return torch.cat([goal_waypoint, goal_euler]) - pos
+    # DEAD: waypoint goal-relative transform; only called by the unused obtain_relative_state
+    # def pos_angle(self, pos):
+    #     waypoints = Waypoints().waypoints
+    #     waypoints = waypoints.to(pos.device)
+    #     distances = torch.norm(waypoints - pos[:3], dim=-1)
+    #     closest_index = torch.argmin(distances)
+    #     goal_index = (closest_index+1)%len(waypoints)
+    #     goal_waypoint = waypoints[goal_index.unsqueeze(0)].squeeze(0)
+    #     goal_angle = torch.atan2(goal_waypoint[1] - pos[1], goal_waypoint[0] - pos[0])
+    #     goal_euler = torch.cat([torch.zeros(2, device=pos.device), goal_angle.unsqueeze(0)])
+    #     return torch.cat([goal_waypoint, goal_euler]) - pos
+    
+    @staticmethod
+    def inject_eval_collision_absorbing_cost(policy: MPAILPolicy):
+        """Attach eval-only absorbing collision logic to policy.costs at runtime."""
+        base_forward = policy.costs.forward
+
+        # NOTE: check these 
+        collision_penalty = 5000
+        occ_threshold = 0
+        hard_reject = True
+
+        # Occupancy channel is appended by dynamics after x_dim when concatenate_feats=True.
+        occ_idx = int(policy.dynamics.x_dim)
+
+        def _forward_with_absorbing_collision(self, rollouts: torch.Tensor):
+            costs = base_forward(rollouts)
+            occ = rollouts[..., occ_idx]
+            collided = occ < occ_threshold
+
+            if hard_reject:
+                any_collision = collided.any(dim=-1, keepdim=True)
+                reject_fill = torch.full_like(costs, collision_penalty)
+                return torch.where(any_collision, reject_fill, costs)
+
+            # Keep costs only until first collision; remove post-collision contributions.
+            alive = (~collided).to(costs.dtype).cumprod(dim=-1)
+            masked_costs = costs * alive
+
+            # Add one-time collision penalty at first collision timestep.
+            prev_collided = torch.nn.functional.pad(collided[..., :-1], (1, 0), value=False)
+            first_collision = collided & (~prev_collided)
+            masked_costs = masked_costs + collision_penalty * first_collision.to(masked_costs.dtype)
+            return masked_costs
+
+        policy.costs.forward = types.MethodType(_forward_with_absorbing_collision, policy.costs)
+        print(
+            "[INFO] Enabled eval-only absorbing rollout collision masking: "
+            f"occ_idx={occ_idx}, occ<thr={occ_threshold}, penalty={collision_penalty}, "
+            f"hard_reject={hard_reject}"
+        )
+        return policy
 
 
 def load_yaml(filename: str) -> dict:
@@ -679,9 +617,5 @@ if __name__ == "__main__":
     cfg_class = MPAILPolicyCfg
     mppi_config = dataclass_from_yaml_recurse(MPAILPolicyCfg, policy_config)
 
-    rollout_vis_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "rollout_vis"
-    )
-    os.makedirs(rollout_vis_dir, exist_ok=True)
     planner = MPAIL_HL_Control(mppi_config, policy_model)
     rospy.spin()
