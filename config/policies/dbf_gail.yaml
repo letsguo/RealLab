@@ -1,0 +1,58 @@
+model_path: "dbf_gail.pt"             # informational; actual path comes from ~model_pt
+model_type: "mlp"
+hidden_shape: [1024, 512]             # = agent.policy.actor_hidden_dims
+throttle_to_wheelspeed: 3.0           # = scale[0]
+steering_max: 0.25                    # = scale[1]
+rate: 50                              # deployment control rate (Hz)
+obs_type: "mocap_occupancy"
+
+# Asymmetric actor-critic: critic input is state[0:3]; arch matches training.
+critic_obs_dim: 3                     # = discriminator_observation_slice [0, 3]
+critic_hidden_dims: [64, 64, 64]      # = agent.policy.critic_hidden_dims
+activation: relu                      # = agent.policy.activation
+
+dbf_cost_cfg:
+  class_type: mpail.cost:TDCost
+  feature_inds:
+  - 0
+  - 1
+  single_step_class_cfg:
+    class_type: mpail.dbf.cost:DBFCost
+    feature_inds: null
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory
+    model_kwargs:
+      hidden_dims:
+      - 64
+      - 64
+      - 64
+      activation: silu
+      use_spectral_norm: false
+      use_layernorm: false
+    clip_costs: null
+    state_dim: 3
+    alpha: linear
+    alpha_args: null
+  terminal_state_class_cfg:
+    class_type: mpail.cost:CostToGo
+    feature_inds: null
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory
+    model_kwargs:
+      input_dim: 3
+      hidden_dims:
+      - 24
+      - 24
+      - 24
+      activation: lrelu
+      use_spectral_norm: false
+      use_layernorm: false
+    clip_costs: null
+  ss_coeff: 1.0
+  ts_coeff: 1.0
+  risk: 1.0101010101010102
+  obstacle_inds:
+  - 12
+  terminal_feature_inds:
+  - 0
+  - 1
+  - 12
+  terminal_feature_inds_str: ''

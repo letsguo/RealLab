@@ -26,6 +26,23 @@ transitions, and concatenated into a single output tensor of shape [sum(M_i), 2,
 
 When using --plot with --combine, generates (a) one overlaid XY plot of all the
 trajectories color-coded by file, and (b) an individual XY plot per input file.
+
+blue, red if inside object.
+instaed of blue 
+Terminal value is based on vlaue function.
+green optimal
+
+for i in {1..5}; do
+    python3 src/DBF_RealLab/scripts/rosbag_to_pt.py \
+        src/DBF_RealLab/dbf_expert_demonstrations/figure8_${i}.bag \
+        -o src/DBF_RealLab/dbf_pt/figure8_${i}.pt
+done
+
+python3 src/DBF_RealLab/scripts/convert_observations.py \
+    --combine src/DBF_RealLab/dbf_pt/figure8_{1..5}.pt \
+    --combine-output figure8_combined.pt \
+    --dst /root/catkin_ws/src/DBF_RealLab/dbf_sim_data \
+    --plot
 """
 import os
 import glob

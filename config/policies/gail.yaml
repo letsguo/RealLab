@@ -1,7 +1,74 @@
-throttle_to_wheelspeed: 3.0 # maximum desired car speed
-model_path: "CORL_MPAIL_model_550.pt" # location of your model wieghts
-model_type: "mlp" # mlp or cnn
-steering_max: 0.488 # max steering angle in radians
-rate: 50 # control frequency of the policy
-obs_type: "blind" # the type of observation that must be passed in to the model
-hidden_shape: [64, 64] # shape of hidden layers
+# Baseline-GAIL deployment config -- parallel to dbf_gail.yaml. Same actor /
+# critic architecture; the only deployment-time difference is the
+# discriminator: baseline GAIL trains a standard expert-vs-policy classifier
+# on (s, s') pairs, so its discriminator file has a 6-dim first Linear
+# instead of DBF's 3-dim.
+#
+# gail_hl_control._load_dbf_spec_function auto-detects the input dim from
+# the first Linear weight in the file at ~discriminator_pt, so this yaml's
+# dbf_cost_cfg.single_step_class_cfg.state_dim is informational only --
+# the loader uses whatever the file says.
+
+model_path: "gail_100.pt"             # informational; actual path comes from ~model_pt
+model_type: "mlp"
+hidden_shape: [1024, 512]             # actor MLP
+throttle_to_wheelspeed: 3.0           # = scale[0]
+steering_max: 0.25                    # = scale[1]
+rate: 50                              # deployment control rate (Hz)
+obs_type: "mocap_occupancy"
+
+# Asymmetric actor-critic: critic input is state[0:3]; arch matches training.
+critic_obs_dim: 3
+critic_hidden_dims: [64, 64, 64]
+activation: relu
+
+# Baseline discriminator config. Architecture matches the DBFGAIL training
+# (same hidden_dims / activation); only state_dim differs (6 = concatenated
+# (s, s'), versus 3 for DBF h(s)). The loader builds an MLP to match what
+# the discriminator file actually contains, so this state_dim is documentation
+# rather than load-bearing.
+dbf_cost_cfg:
+  class_type: mpail.cost:TDCost
+  feature_inds:
+  - 0
+  - 1
+  single_step_class_cfg:
+    class_type: mpail.cost:GAIfOCost
+    feature_inds: null
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory_disc
+    model_kwargs:
+      hidden_dims:
+      - 64
+      - 64
+      - 64
+      activation: silu
+      use_spectral_norm: false
+      use_layernorm: false
+    clip_costs: null
+    state_dim: 6   # (s, s') concatenated -- distinguishes baseline from DBF h(s)
+    alpha: null
+    alpha_args: null
+  terminal_state_class_cfg:
+    class_type: mpail.cost:CostToGo
+    feature_inds: null
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory
+    model_kwargs:
+      input_dim: 3
+      hidden_dims:
+      - 24
+      - 24
+      - 24
+      activation: lrelu
+      use_spectral_norm: false
+      use_layernorm: false
+    clip_costs: null
+  ss_coeff: 1.0
+  ts_coeff: 1.0
+  risk: 1.0101010101010102
+  obstacle_inds:
+  - 12
+  terminal_feature_inds:
+  - 0
+  - 1
+  - 12
+  terminal_feature_inds_str: ''

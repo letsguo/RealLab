@@ -1,0 +1,106 @@
+seed: 0
+debug: false
+temperature: 0.1
+opt_iters: 5
+u_per_command: 1
+cost_cfg:
+  class_type: mpail.cost:TDCost
+  feature_inds:
+  - 0
+  - 1
+  single_step_class_cfg:
+    class_type: mpail.cost:GAIfOCost
+    feature_inds: null
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory
+    model_kwargs:
+      hidden_dims:
+      - 64
+      - 64
+      - 64
+      activation: lrelu
+      use_spectral_norm: true
+    clip_costs: null
+    state_dim: 3
+  terminal_state_class_cfg:
+    class_type: mpail.cost:CostToGo
+    feature_inds: null
+    model_factory: mpail.mppi.core.cost.utils:fcnn_factory
+    model_kwargs:
+      input_dim: 3
+      hidden_dims:
+      - 24
+      - 24
+      - 24
+      activation: relu
+    clip_costs: null
+  ss_coeff: 1.0
+  ts_coeff: 1.0
+  risk: 1.0101010101010102
+  obstacle_inds:
+  - 12
+  terminal_feature_inds:
+  - 0
+  - 1
+  - 12
+  terminal_feature_inds_str: ''
+  collision_absorbing_enabled: true
+  collision_absorbing_occ_threshold: 0.0
+  collision_absorbing_penalty: 5000.0
+  collision_absorbing_hard_reject: true
+dynamics_cfg:
+  wheelbase: 0.325
+  throttle_to_wheelspeed: 3.0
+  steering_max: 0.4
+  dt: 0.1
+  feat_dim: 1
+  concatenate_feats: true
+  x_dim: 12
+  class_type: mpail.mppi.core.dynamics.car_dynamics:SimpleCarDynamicsWithMapNoAction
+sampling_cfg:
+  control_dim: 2
+  noise:
+  - 0.3
+  - 0.3
+  scaled_dt: 0.1
+  max_control:
+  - - 0.0
+    - 1.0
+  - - -1.0
+    - 1.0
+  num_rollouts: 512
+  num_timesteps: 6
+  class_type: mpail.mppi.core.sampling.delta_sampling:DeltaSampling
+  max_delta:
+  - 1.0
+  - 1.0
+map_cfg:
+  map_length_px: 41
+  map_res_m_px: 0.1
+  feature_dim: 1
+  class_type: mpail.mppi.core.maps.bev_map:BEVMap
+  map_res_hitl: 0.25
+vis_cfg:
+  class_type: mpail.mppi.core.vis.rollout_vis:RolloutsVisualization
+  vis_rollouts: null
+  vis_n_envs: 1
+  vis_n_rollouts: 20
+  xlim: !!python/tuple
+  - -7
+  - 15
+  ylim: !!python/tuple
+  - -7
+  - 15
+  show_velocity: false
+  show_elevation: false
+  cost_range: !!python/tuple
+  - -1.5
+  - 1.5
+  show_trajectory_trace: false
+  show_occupancy_map: false
+  show_rollouts_scatter: null
+action_dist: normal
+action_dist_params:
+  init_std: 1.0
+  min_std: 0.001
+temp_decay: 0.1
+min_temp: 0.01
